@@ -8,6 +8,40 @@ let currentCategoryFilter = null;
 let currentSort = 'created';
 let searchQuery = '';
 let editingId = null;
+
+// ===== ТЕМНАЯ ТЕМА =====
+const THEME_KEY = 'todo_theme';
+
+// Загрузка сохраненной темы
+function loadTheme() {
+    const savedTheme = localStorage.getItem(THEME_KEY);
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
+        document.body.classList.add('dark-theme');
+        const themeBtn = document.getElementById('theme-toggle-btn');
+        if (themeBtn) themeBtn.textContent = '☀️';
+    } else {
+        document.body.classList.remove('dark-theme');
+        const themeBtn = document.getElementById('theme-toggle-btn');
+        if (themeBtn) themeBtn.textContent = '🌙';
+    }
+}
+
+// Переключение темы
+function toggleTheme() {
+    const isDark = document.body.classList.toggle('dark-theme');
+    localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+    const themeBtn = document.getElementById('theme-toggle-btn');
+    if (themeBtn) themeBtn.textContent = isDark ? '☀️' : '🌙';
+}
+
+// Инициализация кнопки переключения темы
+const themeBtn = document.getElementById('theme-toggle-btn');
+if (themeBtn) {
+    themeBtn.addEventListener('click', toggleTheme);
+}
+
 // Константы для валидации
 const MIN_TITLE_LENGTH = 3;
 const MAX_TITLE_LENGTH = 150;
@@ -776,8 +810,8 @@ editDescInput.addEventListener('input', () => {
 });
 editTitleCounter.textContent = `0 / ${MAX_TITLE_LENGTH}`;
 // ===== ИНИЦИАЛИЗАЦИЯ =====
+loadTheme(); // Загружаем тему перед остальными данными
 loadData();
 renderAll();
-
 
 // описание задач. в нижний правый угл пост уведомление действий, пункт 25, 26 проверить, темная тема и светлая 

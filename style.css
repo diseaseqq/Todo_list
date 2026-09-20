@@ -18,6 +18,87 @@
     --shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
+/* Тёмная тема */
+body.dark-theme {
+    --bg: #1a1a2e;
+    --card: #16213e;
+    --text: #eaeaea;
+    --text-light: #a0a0a0;
+    --border: #2d3748;
+    --shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+body.dark-theme .stat-item {
+    background: #2d3748;
+}
+
+body.dark-theme .stat-item.overdue {
+    background: #7f1d1d;
+}
+
+body.dark-theme .filter-btn {
+    background: var(--card);
+    color: var(--text);
+}
+
+body.dark-theme .filter-btn:hover {
+    background: #2d3748;
+}
+
+body.dark-theme .task-item.completed {
+    background: #1a1a2e;
+}
+
+body.dark-theme .archive-item {
+    background: #2d3748;
+}
+
+body.dark-theme .modal-content {
+    background: var(--card);
+    color: var(--text);
+}
+
+body.dark-theme .toast {
+    background: var(--card);
+}
+
+body.dark-theme .input-with-counter {
+    background: transparent;
+}
+
+body.dark-theme select option {
+    background: var(--card);
+    color: var(--text);
+}
+
+body.dark-theme .task-input,
+body.dark-theme .select-input,
+body.dark-theme .date-input,
+body.dark-theme .search-input,
+body.dark-theme .category-input,
+body.dark-theme .task-textarea {
+    background: var(--bg);
+    color: var(--text);
+    border-color: var(--border);
+}
+
+body.dark-theme .task-item {
+    background: var(--card);
+    border-color: var(--border);
+}
+
+body.dark-theme .archive-stat {
+    background: #2d3748;
+}
+
+body.dark-theme .archive-stat.has-items {
+    background: #4a3f1a;
+}
+
+body.dark-theme .archive-stat.has-items:hover {
+    background: #5c4d1f;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     background: var(--bg);
@@ -40,8 +121,26 @@ body {
     margin-bottom: 20px;
 }
 
-.header h1 {
+.header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 16px;
+}
+
+.theme-btn {
+    font-size: 20px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.theme-btn:hover {
+    background: var(--bg);
+}
+
+.header h1 {
+    margin-bottom: 0;
     color: var(--primary);
 }
 
