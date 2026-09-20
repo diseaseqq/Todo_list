@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="app">
+        <!-- Шапка со статистикой -->
+        <header class="header">
+            <h1>📝 Мои задачи</h1>
+            <div class="stats">
+                <div class="stat-item">
+                    <span class="stat-value" id="stat-total">0</span>
+                    <span class="stat-label">Всего</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="stat-active">0</span>
+                    <span class="stat-label">Активных</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="stat-done">0</span>
+                    <span class="stat-label">Выполнено</span>
+                </div>
+                <div class="stat-item overdue">
+                    <span class="stat-value" id="stat-overdue">0</span>
+                    <span class="stat-label">Просрочено</span>
+                </div>
+                <!-- 🆕 Новая плашка архива -->
+                <div class="stat-item archive-stat" id="archive-stat-btn" title="Открыть архив">
+                    <span class="stat-value" id="stat-archived">0</span>
+                    <span class="stat-label">В архиве</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Форма добавления задачи -->
+        <section class="add-form">
+            <div class="add-form-main">
+                <input type="text" id="task-input" placeholder="Что нужно сделать?" class="task-input" maxlength="150">
+                <textarea id="task-description" placeholder="Описание задачи (необязательно)" class="task-textarea"
+                    maxlength="500"></textarea>
+            </div>
+            <select id="priority-input" class="select-input">
+                <option value="low">🟢 Низкий</option>
+                <option value="medium" selected>🟡 Средний</option>
+                <option value="high">🔴 Высокий</option>
+            </select>
+            <input type="date" id="date-input" class="date-input">
+            <select id="category-input" class="select-input">
+                <option value="">Без категории</option>
+            </select>
+            <button id="add-btn" class="btn btn-primary">Добавить</button>
+        </section>
+
+        <!-- Управление категориями -->
+        <section class="categories-panel">
+            <h3>Категории</h3>
+            <div class="category-controls">
+                <input type="text" id="new-category" placeholder="Новая категория" class="category-input">
+                <button id="add-category-btn" class="btn btn-small">+</button>
+            </div>
+            <div id="categories-list" class="categories-list"></div>
+        </section>
+        <!-- Панель категорий -->
+
+
+        <!-- Панель поиска, фильтров и сортировки -->
+        <section class="controls">
+            <input type="text" id="search-input" placeholder="🔍 Поиск задач..." class="search-input">
+
+            <div class="filters">
+                <button class="filter-btn active" data-filter="all">Все</button>
+                <button class="filter-btn" data-filter="active">Активные</button>
+                <button class="filter-btn" data-filter="done">Выполненные</button>
+                <button class="filter-btn" data-filter="overdue">Просроченные</button>
+            </div>
+
+            <select id="sort-select" class="select-input">
+                <option value="created">По дате создания</option>
+                <option value="dueDate">По дате выполнения</option>
+                <option value="priority">По приоритету</option>
+                <option value="title">По алфавиту</option>
+            </select>
+        </section>
+
+        <!-- Список задач -->
+        <section class="tasks-section">
+            <ul id="tasks-list" class="tasks-list"></ul>
+            <div id="empty-state" class="empty-state hidden">
+                <p>Задач пока нет. Добавьте первую!</p>
+            </div>
+        </section>
+    </div>
+
+    <!-- Модальное окно редактирования -->
+    <!-- Модальное окно редактирования -->
+    <div id="edit-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2>Редактировать задачу</h2>
+            <input type="text" id="edit-title" class="task-input" placeholder="Название задачи" maxlength="150">
+            <textarea id="edit-description" placeholder="Описание задачи" class="task-textarea"
+                maxlength="500"></textarea>
+            <select id="edit-priority" class="select-input">
+                <option value="low">🟢 Низкий приоритет</option>
+                <option value="medium">🟡 Средний приоритет</option>
+                <option value="high">🔴 Высокий приоритет</option>
+            </select>
+            <input type="date" id="edit-date" class="date-input">
+            <select id="edit-category" class="select-input">
+                <option value="">Без категории</option>
+            </select>
+            <div class="modal-actions">
+                <button id="cancel-edit-btn" class="btn btn-secondary">Отмена</button>
+                <button id="apply-edit-btn" class="btn btn-primary">Применить</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Модальное окно архива -->
+    <div id="archive-modal" class="modal hidden">
+        <div class="modal-content archive-modal">
+            <div class="archive-header">
+                <h2>️ Архив задач</h2>
+                <button id="close-archive-btn" class="btn-icon close-btn">✕</button>
+            </div>
+            <div class="archive-actions">
+                <button id="restore-all-btn" class="btn btn-secondary">Восстановить все</button>
+                <button id="clear-archive-btn" class="btn btn-danger">Очистить архив</button>
+            </div>
+            <ul id="archive-list" class="archive-list"></ul>
+            <div id="archive-empty" class="empty-state hidden">
+                <p>Архив пуст</p>
+            </div>
+        </div>
+    </div>
+    <button id="archive-btn" class="floating-archive-btn" title="Архив удалённых задач">
+        🗄️
+        <span id="archive-count" class="archive-badge">0</span>
+    </button>
+    <!-- Контейнер для тост-уведомлений -->
+<div id="toast-container" class="toast-container"></div>
+
+
+    <script src="/js/script.js"></script>
+    <script src="/js/toast.js"></script>
+</body>
+<!-- Плавающая кнопка архива -->
+
+</html>
