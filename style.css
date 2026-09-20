@@ -56,6 +56,64 @@ body.dark-theme .archive-item {
 body.dark-theme .modal-content {
     background: var(--card);
     color: var(--text);
+    border: 1px solid var(--border);
+}
+
+body.dark-theme .modal-content h2 {
+    color: var(--text);
+}
+
+body.dark-theme .modal-content .task-input,
+body.dark-theme .modal-content .task-textarea,
+body.dark-theme .modal-content .select-input,
+body.dark-theme .modal-content .date-input {
+    background: var(--bg);
+    color: var(--text);
+    border-color: var(--border);
+}
+
+body.dark-theme .modal-content .task-input::placeholder,
+body.dark-theme .modal-content .task-textarea::placeholder {
+    color: var(--text-light);
+}
+
+body.dark-theme .modal-actions .btn-secondary {
+    background: var(--bg);
+    color: var(--text);
+}
+
+body.dark-theme .modal-actions .btn-secondary:hover {
+    background: var(--border);
+}
+
+/* Стили для модального окна архива в темной теме */
+body.dark-theme .archive-header {
+    border-bottom-color: var(--border);
+}
+
+body.dark-theme .archive-header h2 {
+    color: var(--text);
+}
+
+body.dark-theme .close-btn {
+    color: var(--text-light);
+}
+
+body.dark-theme .close-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+}
+
+body.dark-theme .archive-item {
+    background: var(--bg);
+    border-color: var(--border);
+}
+
+body.dark-theme .archive-item-title {
+    color: var(--text-light);
+}
+
+body.dark-theme .archive-item-meta {
+    color: var(--text-light);
 }
 
 body.dark-theme .toast {
