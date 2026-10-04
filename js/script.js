@@ -82,7 +82,7 @@ function normalizeTask(task) {
         ? task.priority
         : 'medium';
 
-    const dueDate = typeof task.dueDate === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(task.dueDate)
+    const dueDate = typeof task.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(task.dueDate)
         ? task.dueDate
         : null;
 
@@ -158,7 +158,7 @@ function generateId() {
 }
 
 function parseDateOnly(dateStr) {
-    if (typeof dateStr !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}$/.test(dateStr)) {
+    if (typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         return null;
     }
 
