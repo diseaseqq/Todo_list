@@ -15,7 +15,7 @@ const THEME_KEY = 'todo_theme';
 
 // Загрузка сохраненной темы
 function loadTheme() {
-    const savedTheme = localStorage.getItem(THEME_KEY);
+    const savedTheme = getStoredValue(THEME_KEY);
     const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
     if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
@@ -32,7 +32,7 @@ function loadTheme() {
 // Переключение темы
 function toggleTheme() {
     const isDark = document.body.classList.toggle('dark-theme');
-    localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+    setStoredValue(THEME_KEY, isDark ? 'dark' : 'light');
     const themeBtn = document.getElementById('theme-toggle-btn');
     if (themeBtn) themeBtn.textContent = isDark ? '☀️' : '🌙';
 }
@@ -60,8 +60,27 @@ function validateTitle(title) {
 
 
 // ===== РАБОТА С localStorage =====
+function getStoredValue(key) {
+    try {
+        return localStorage.getItem(key);
+    } catch (error) {
+        console.warn(`Не удалось прочитать localStorage: ${key}`, error);
+        return null;
+    }
+}
+
+function setStoredValue(key, value) {
+    try {
+        localStorage.setItem(key, value);
+        return true;
+    } catch (error) {
+        console.error(`Не удалось сохранить данные в localStorage: ${key}`, error);
+        return false;
+    }
+}
+
 function parseStoredArray(key, fallback = []) {
-    const raw = localStorage.getItem(key);
+    const raw = getStoredValue(key);
     if (!raw) return fallback;
 
     try {
@@ -83,7 +102,7 @@ function normalizeTask(task) {
         ? task.priority
         : 'medium';
 
-    const dueDate = typeof task.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(task.dueDate)
+    const dueDate = typeof task.dueDate === 'string' && parseDateOnly(task.dueDate)
         ? task.dueDate
         : null;
 
@@ -111,12 +130,22 @@ function normalizeTasks(items) {
 }
 
 function normalizeCategories(items) {
-    return [...new Set(
-        items
-            .filter(item => typeof item === 'string')
-            .map(item => item.trim())
-            .filter(Boolean)
-    )];
+    const result = [];
+    const seen = new Set();
+
+    items
+        .filter(item => typeof item === 'string')
+        .map(item => item.trim())
+        .filter(Boolean)
+        .forEach(category => {
+            const key = category.toLocaleLowerCase('ru-RU');
+            if (!seen.has(key)) {
+                seen.add(key);
+                result.push(category);
+            }
+        });
+
+    return result;
 }
 
 function loadData() {
@@ -131,14 +160,18 @@ function loadData() {
     saveCategories();
 }
 function saveArchivedTasks() {
-    localStorage.setItem('todo_archived', JSON.stringify(archivedTasks));
+    setStoredValue('todo_archived', JSON.stringify(archivedTasks));
 }
 
 // Функция совмещения двух массивов категорий без дубликатов
 function mergeCategories(saved, defaults) {
     const result = [...defaults];
+    const existing = new Set(defaults.map(cat => cat.toLocaleLowerCase('ru-RU')));
+
     saved.forEach(cat => {
-        if (!defaults.includes(cat) && !result.includes(cat)) {
+        const key = cat.toLocaleLowerCase('ru-RU');
+        if (!existing.has(key)) {
+            existing.add(key);
             result.push(cat);
         }
     });
@@ -146,11 +179,11 @@ function mergeCategories(saved, defaults) {
     return result;
 }
 function saveTasks() {
-    localStorage.setItem('todo_tasks', JSON.stringify(tasks));
+    setStoredValue('todo_tasks', JSON.stringify(tasks));
 }
 
 function saveCategories() {
-    localStorage.setItem('todo_categories', JSON.stringify(categories));
+    setStoredValue('todo_categories', JSON.stringify(categories));
 }
 
 // ===== УТИЛИТЫ =====
