@@ -8,6 +8,7 @@ let currentCategoryFilter = null;
 let currentSort = 'created';
 let searchQuery = '';
 let editingId = null;
+let lastFocusedElement = null;
 
 // ===== ТЕМНАЯ ТЕМА =====
 const THEME_KEY = 'todo_theme';
@@ -282,6 +283,7 @@ function openEditModal(id) {
     const task = tasks.find(t => t.id === id);
     if (!task) return;
 
+    lastFocusedElement = document.activeElement;
     editingId = id;
     document.getElementById('edit-title').value = task.title;
     document.getElementById('edit-description').value = task.description || '';
@@ -297,7 +299,9 @@ function openEditModal(id) {
         editDescCounter.classList.remove('counter-warning', 'counter-error');
     }
     
-    document.getElementById('edit-modal').classList.remove('hidden');
+    const modal = document.getElementById('edit-modal');
+    modal.classList.remove('hidden');
+    document.getElementById('edit-title').focus();
 }
 
 function saveEdit() {
@@ -340,6 +344,10 @@ function saveEdit() {
 function closeEditModal() {
     document.getElementById('edit-modal').classList.add('hidden');
     editingId = null;
+    if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+        lastFocusedElement.focus();
+    }
+    lastFocusedElement = null;
 }
 
 // ===== КАТЕГОРИИ =====
@@ -438,43 +446,85 @@ function renderTasks() {
     const emptyState = document.getElementById('empty-state');
     const filtered = getFilteredTasks();
 
-    list.innerHTML = '';
+    list.replaceChildren();
 
     if (filtered.length === 0) {
         emptyState.classList.remove('hidden');
-    } else {
-        emptyState.classList.add('hidden');
-        
-        filtered.forEach(task => {
-            const li = document.createElement('li');
-            li.className = 'task-item';
-            if (task.completed) li.classList.add('completed');
-            if (isOverdue(task)) li.classList.add('overdue');
-
-            li.innerHTML = `
-    <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''}>
-    <div class="task-info">
-        <div class="task-title">${escapeHtml(task.title)}</div>
-        ${task.description ? `<div class="task-description">${escapeHtml(task.description)}</div>` : ''}
-        <div class="task-meta">
-            <span class="priority-badge priority-${task.priority}">
-                ${getPriorityLabel(task.priority)}
-            </span>
-            ${task.dueDate ? `<span>📅 ${formatDate(task.dueDate)}</span>` : ''}
-            ${task.category ? `<span class="category-badge">${escapeHtml(task.category)}</span>` : ''}
-        </div>
-    </div>
-    <button class="btn-icon" title="Редактировать">✏️</button>
-    <button class="btn-icon" title="Удалить">🗑️</button>
-`;
-
-            li.querySelector('.task-checkbox').addEventListener('change', () => toggleTask(task.id));
-            li.querySelectorAll('.btn-icon')[0].addEventListener('click', () => openEditModal(task.id));
-            li.querySelectorAll('.btn-icon')[1].addEventListener('click', () => deleteTask(task.id));
-
-            list.appendChild(li);
-        });
+        return;
     }
+
+    emptyState.classList.add('hidden');
+
+    filtered.forEach(task => {
+        const li = document.createElement('li');
+        li.className = 'task-item';
+        if (task.completed) li.classList.add('completed');
+        if (isOverdue(task)) li.classList.add('overdue');
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'task-checkbox';
+        checkbox.checked = task.completed;
+        checkbox.setAttribute('aria-label', `Отметить задачу «${task.title}» как выполненную`);
+        checkbox.addEventListener('change', () => toggleTask(task.id));
+
+        const info = document.createElement('div');
+        info.className = 'task-info';
+
+        const title = document.createElement('div');
+        title.className = 'task-title';
+        title.textContent = task.title;
+        info.appendChild(title);
+
+        if (task.description) {
+            const description = document.createElement('div');
+            description.className = 'task-description';
+            description.textContent = task.description;
+            info.appendChild(description);
+        }
+
+        const meta = document.createElement('div');
+        meta.className = 'task-meta';
+
+        const priority = document.createElement('span');
+        priority.className = `priority-badge priority-${task.priority}`;
+        priority.textContent = getPriorityLabel(task.priority);
+        meta.appendChild(priority);
+
+        if (task.dueDate) {
+            const dueDate = document.createElement('span');
+            dueDate.textContent = `📅 ${formatDate(task.dueDate)}`;
+            meta.appendChild(dueDate);
+        }
+
+        if (task.category) {
+            const category = document.createElement('span');
+            category.className = 'category-badge';
+            category.textContent = task.category;
+            meta.appendChild(category);
+        }
+
+        info.appendChild(meta);
+
+        const editButton = document.createElement('button');
+        editButton.type = 'button';
+        editButton.className = 'btn-icon btn-edit';
+        editButton.title = 'Редактировать';
+        editButton.setAttribute('aria-label', `Редактировать задачу «${task.title}»`);
+        editButton.textContent = '✏️';
+        editButton.addEventListener('click', () => openEditModal(task.id));
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'btn-icon btn-delete';
+        deleteButton.title = 'Удалить';
+        deleteButton.setAttribute('aria-label', `Удалить задачу «${task.title}»`);
+        deleteButton.textContent = '🗑️';
+        deleteButton.addEventListener('click', () => deleteTask(task.id));
+
+        li.append(checkbox, info, editButton, deleteButton);
+        list.appendChild(li);
+    });
 }
 
 function renderCategories() {
@@ -586,12 +636,6 @@ function renderAll() {
     updateStats();
 }
 
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
 // Восстановить задачу из архива
 function restoreTask(id) {
     const taskIndex = archivedTasks.findIndex(t => t.id === id);
@@ -667,13 +711,19 @@ function updateArchiveCount() {
 
 // Открыть архив
 function openArchive() {
+    lastFocusedElement = document.activeElement;
     document.getElementById('archive-modal').classList.remove('hidden');
     renderArchive();
+    document.getElementById('close-archive-btn').focus();
 }
 
 // Закрыть архив
 function closeArchive() {
     document.getElementById('archive-modal').classList.add('hidden');
+    if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+        lastFocusedElement.focus();
+    }
+    lastFocusedElement = null;
 }
 
 // Отрендерить список архива
@@ -702,19 +752,51 @@ function renderArchive() {
                   })
                 : '';
             
-            li.innerHTML = `
-                <div class="archive-item-info">
-                    <div class="archive-item-title">${escapeHtml(task.title)}</div>
-                    <div class="archive-item-meta">
-                        ${task.category ? `<span class="category-badge">${escapeHtml(task.category)}</span>` : ''}
-                        ${deletedDate ? `<span>Удалено: ${deletedDate}</span>` : ''}
-                    </div>
-                </div>
-                <div class="archive-item-actions">
-                    <button class="btn btn-restore" data-id="${task.id}">Восстановить</button>
-                    <button class="btn btn-delete-permanent" data-id="${task.id}">Удалить</button>
-                </div>
-            `;
+            const info = document.createElement('div');
+            info.className = 'archive-item-info';
+
+            const title = document.createElement('div');
+            title.className = 'archive-item-title';
+            title.textContent = task.title;
+            info.appendChild(title);
+
+            const meta = document.createElement('div');
+            meta.className = 'archive-item-meta';
+
+            if (task.category) {
+                const category = document.createElement('span');
+                category.className = 'category-badge';
+                category.textContent = task.category;
+                meta.appendChild(category);
+            }
+
+            if (deletedDate) {
+                const deleted = document.createElement('span');
+                deleted.textContent = `Удалено: ${deletedDate}`;
+                meta.appendChild(deleted);
+            }
+
+            info.appendChild(meta);
+
+            const actions = document.createElement('div');
+            actions.className = 'archive-item-actions';
+
+            const restoreButton = document.createElement('button');
+            restoreButton.type = 'button';
+            restoreButton.className = 'btn btn-restore';
+            restoreButton.textContent = 'Восстановить';
+            restoreButton.setAttribute('aria-label', `Восстановить задачу «${task.title}»`);
+            restoreButton.addEventListener('click', () => restoreTask(task.id));
+
+            const deleteButton = document.createElement('button');
+            deleteButton.type = 'button';
+            deleteButton.className = 'btn btn-delete-permanent';
+            deleteButton.textContent = 'Удалить';
+            deleteButton.setAttribute('aria-label', `Удалить задачу «${task.title}» навсегда`);
+            deleteButton.addEventListener('click', () => deletePermanently(task.id));
+
+            actions.append(restoreButton, deleteButton);
+            li.append(info, actions);
             
             list.appendChild(li);
         });
@@ -782,8 +864,30 @@ document.getElementById('clear-archive-btn').addEventListener('click', clearArch
 document.getElementById('archive-modal').addEventListener('click', (e) => {
     if (e.target.id === 'archive-modal') closeArchive();
 });
-// Клик по плашке архива в статистике — открывает архив
-document.getElementById('archive-stat-btn').addEventListener('click', openArchive);
+
+// Клавиатурная навигация по модальным окнам
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+
+    const editModal = document.getElementById('edit-modal');
+    const archiveModal = document.getElementById('archive-modal');
+
+    if (!editModal.classList.contains('hidden')) {
+        closeEditModal();
+    } else if (!archiveModal.classList.contains('hidden')) {
+        closeArchive();
+    }
+});
+
+// Клик и Enter/Space по плашке архива в статистике
+const archiveStat = document.getElementById('archive-stat-btn');
+archiveStat.addEventListener('click', openArchive);
+archiveStat.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openArchive();
+    }
+});
 // Счётчик символов в поле создания задачи
 // ===== СЧЁТЧИКИ СИМВОЛОВ =====
 
