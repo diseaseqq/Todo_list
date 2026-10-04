@@ -72,12 +72,61 @@ function parseStoredArray(key, fallback = []) {
     }
 }
 
-function loadData() {
-    tasks = parseStoredArray('todo_tasks');
-    archivedTasks = parseStoredArray('todo_archived');
+function normalizeTask(task) {
+    if (!task || typeof task !== 'object') return null;
 
-    const savedCategories = parseStoredArray('todo_categories');
+    const title = typeof task.title === 'string' ? task.title.trim() : '';
+    if (!title) return null;
+
+    const priority = ['low', 'medium', 'high'].includes(task.priority)
+        ? task.priority
+        : 'medium';
+
+    const dueDate = typeof task.dueDate === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(task.dueDate)
+        ? task.dueDate
+        : null;
+
+    const category = typeof task.category === 'string' && task.category.trim()
+        ? task.category.trim()
+        : null;
+
+    return {
+        id: typeof task.id === 'string' && task.id ? task.id : generateId(),
+        title: title.slice(0, MAX_TITLE_LENGTH),
+        description: typeof task.description === 'string'
+            ? task.description.trim().slice(0, MAX_DESCRIPTION_LENGTH) || null
+            : null,
+        completed: Boolean(task.completed),
+        priority,
+        dueDate,
+        category,
+        createdAt: Number.isFinite(task.createdAt) ? task.createdAt : Date.now(),
+        ...(Number.isFinite(task.deletedAt) ? { deletedAt: task.deletedAt } : {})
+    };
+}
+
+function normalizeTasks(items) {
+    return items.map(normalizeTask).filter(Boolean);
+}
+
+function normalizeCategories(items) {
+    return [...new Set(
+        items
+            .filter(item => typeof item === 'string')
+            .map(item => item.trim())
+            .filter(Boolean)
+    )];
+}
+
+function loadData() {
+    tasks = normalizeTasks(parseStoredArray('todo_tasks'));
+    archivedTasks = normalizeTasks(parseStoredArray('todo_archived'));
+
+    const savedCategories = normalizeCategories(parseStoredArray('todo_categories'));
     categories = mergeCategories(savedCategories, defaultCategories);
+
+    saveTasks();
+    saveArchivedTasks();
     saveCategories();
 }
 function saveArchivedTasks() {
@@ -86,14 +135,13 @@ function saveArchivedTasks() {
 
 // Функция совмещения двух массивов категорий без дубликатов
 function mergeCategories(saved, defaults) {
-    // Возвращаем массив: сначала дефолтные (в их порядке), потом пользовательские.
     const result = [...defaults];
     saved.forEach(cat => {
-        if (!defaults.includes(cat)) {
+        if (!defaults.includes(cat) && !result.includes(cat)) {
             result.push(cat);
         }
     });
-    
+
     return result;
 }
 function saveTasks() {
@@ -109,18 +157,44 @@ function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
+function parseDateOnly(dateStr) {
+    if (typeof dateStr !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}$/.test(dateStr)) {
+        return null;
+    }
+
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+
+    if (
+        date.getFullYear() !== year ||
+        date.getMonth() !== month - 1 ||
+        date.getDate() !== day
+    ) {
+        return null;
+    }
+
+    return date;
+}
+
 function isOverdue(task) {
     if (!task.dueDate || task.completed) return false;
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const due = new Date(task.dueDate);
-    return due < today;
+
+    const due = parseDateOnly(task.dueDate);
+    return due ? due < today : false;
 }
 
 function formatDate(dateStr) {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const date = parseDateOnly(dateStr);
+    if (!date) return '';
+
+    return date.toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    });
 }
 
 function getPriorityLabel(p) {
@@ -278,7 +352,14 @@ function addCategory() {
         return;
     }
     
-    if (categories.includes(name)) {
+    const MAX_CATEGORY_LENGTH = 50;
+    if (name.length > MAX_CATEGORY_LENGTH) {
+        Toast.warning(`Название категории не должно превышать ${MAX_CATEGORY_LENGTH} символов`, 3500, 'Слишком длинное название');
+        input.focus();
+        return;
+    }
+
+    if (categories.some(category => category.toLocaleLowerCase('ru-RU') === name.toLocaleLowerCase('ru-RU'))) {
         Toast.error('Такая категория уже существует!', 3000, `Ошибка`);
         return;
     }
@@ -315,7 +396,7 @@ function getFilteredTasks() {
             if (!a.dueDate && !b.dueDate) return 0;
             if (!a.dueDate) return 1;
             if (!b.dueDate) return -1;
-            return new Date(a.dueDate) - new Date(b.dueDate);
+            return (parseDateOnly(a.dueDate)?.getTime() || 0) - (parseDateOnly(b.dueDate)?.getTime() || 0);
         }
         if (currentSort === 'priority') return priorityOrder[b.priority] - priorityOrder[a.priority];
         if (currentSort === 'title') return a.title.localeCompare(b.title, 'ru');
