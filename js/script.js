@@ -92,6 +92,38 @@ function parseStoredArray(key, fallback = []) {
     }
 }
 
+function normalizeSubtasks(items) {
+    const usedIds = new Set();
+
+    if (!Array.isArray(items)) return [];
+
+    return items
+        .filter(item => item && typeof item === 'object')
+        .map(item => {
+            const title = typeof item.title === 'string' ? item.title.trim() : '';
+            if (!title) return null;
+
+            let id = typeof item.id === 'string' && item.id.trim() ? item.id.trim() : generateId();
+            while (usedIds.has(id)) {
+                id = generateId();
+            }
+            usedIds.add(id);
+
+            return {
+                id,
+                title: title.slice(0, 150),
+                completed: Boolean(item.completed)
+            };
+        })
+        .filter(Boolean);
+}
+
+function getSubtaskProgress(task) {
+    const total = task.subtasks.length;
+    const completed = task.subtasks.filter(subtask => subtask.completed).length;
+    return { completed, total };
+}
+
 function normalizeTask(task) {
     if (!task || typeof task !== 'object') return null;
 
@@ -120,6 +152,7 @@ function normalizeTask(task) {
         priority,
         dueDate,
         category,
+        subtasks: normalizeSubtasks(task.subtasks),
         createdAt: Number.isFinite(task.createdAt) ? task.createdAt : Date.now(),
         ...(Number.isFinite(task.deletedAt) ? { deletedAt: task.deletedAt } : {})
     };
@@ -251,6 +284,61 @@ function getPriorityLabel(p) {
 }
 
 // ===== CRUD ОПЕРАЦИИ =====
+function addSubtask(taskId, input) {
+    const task = tasks.find(item => item.id === taskId);
+    if (!task) return;
+
+    const title = input.value.trim();
+    if (!title) {
+        input.focus();
+        return;
+    }
+
+    if (title.length > 150) {
+        Toast.warning('Подзадача не должна превышать 150 символов', 3000, 'Слишком длинное название');
+        input.focus();
+        return;
+    }
+
+    task.subtasks.push({
+        id: generateId(),
+        title,
+        completed: false
+    });
+
+    saveTasks();
+    renderAll();
+
+    requestAnimationFrame(() => {
+        const nextInput = document.querySelector('.subtask-input[data-task-id="' + taskId + '"]');
+        if (nextInput) nextInput.focus();
+    });
+}
+
+function toggleSubtask(taskId, subtaskId) {
+    const task = tasks.find(item => item.id === taskId);
+    if (!task) return;
+
+    const subtask = task.subtasks.find(item => item.id === subtaskId);
+    if (!subtask) return;
+
+    subtask.completed = !subtask.completed;
+    saveTasks();
+    renderAll();
+}
+
+function deleteSubtask(taskId, subtaskId) {
+    const task = tasks.find(item => item.id === taskId);
+    if (!task) return;
+
+    const index = task.subtasks.findIndex(item => item.id === subtaskId);
+    if (index === -1) return;
+
+    task.subtasks.splice(index, 1);
+    saveTasks();
+    renderAll();
+}
+
 function addTask() {
     const titleInput = document.getElementById('task-input');
     const descriptionInput = document.getElementById('task-description');
@@ -551,7 +639,75 @@ function renderTasks() {
             meta.appendChild(category);
         }
 
+        const progress = getSubtaskProgress(task);
+        if (progress.total > 0) {
+            const progressBadge = document.createElement('span');
+            progressBadge.className = 'subtask-progress';
+            progressBadge.textContent = 'Подзадачи: ' + progress.completed + '/' + progress.total;
+            meta.appendChild(progressBadge);
+        }
+
         info.appendChild(meta);
+
+        const subtasks = document.createElement('div');
+        subtasks.className = 'subtasks';
+
+        task.subtasks.forEach(subtask => {
+            const row = document.createElement('div');
+            row.className = 'subtask-row';
+
+            const subtaskCheckbox = document.createElement('input');
+            subtaskCheckbox.type = 'checkbox';
+            subtaskCheckbox.className = 'subtask-checkbox';
+            subtaskCheckbox.checked = subtask.completed;
+            subtaskCheckbox.setAttribute('aria-label', 'Отметить подзадачу «' + subtask.title + '» как выполненную');
+            subtaskCheckbox.addEventListener('change', () => toggleSubtask(task.id, subtask.id));
+
+            const subtaskTitle = document.createElement('span');
+            subtaskTitle.className = 'subtask-title';
+            if (subtask.completed) subtaskTitle.classList.add('completed');
+            subtaskTitle.textContent = subtask.title;
+
+            const removeSubtaskButton = document.createElement('button');
+            removeSubtaskButton.type = 'button';
+            removeSubtaskButton.className = 'btn-icon subtask-delete';
+            removeSubtaskButton.title = 'Удалить подзадачу';
+            removeSubtaskButton.setAttribute('aria-label', 'Удалить подзадачу «' + subtask.title + '»');
+            removeSubtaskButton.textContent = '×';
+            removeSubtaskButton.addEventListener('click', () => deleteSubtask(task.id, subtask.id));
+
+            row.append(subtaskCheckbox, subtaskTitle, removeSubtaskButton);
+            subtasks.appendChild(row);
+        });
+
+        const subtaskForm = document.createElement('div');
+        subtaskForm.className = 'subtask-form';
+
+        const subtaskInput = document.createElement('input');
+        subtaskInput.type = 'text';
+        subtaskInput.className = 'subtask-input';
+        subtaskInput.dataset.taskId = task.id;
+        subtaskInput.maxLength = 150;
+        subtaskInput.placeholder = 'Добавить подзадачу…';
+        subtaskInput.setAttribute('aria-label', 'Добавить подзадачу к задаче «' + task.title + '»');
+
+        const addSubtaskButton = document.createElement('button');
+        addSubtaskButton.type = 'button';
+        addSubtaskButton.className = 'btn btn-small';
+        addSubtaskButton.textContent = '+';
+        addSubtaskButton.setAttribute('aria-label', 'Добавить подзадачу к задаче «' + task.title + '»');
+        addSubtaskButton.addEventListener('click', () => addSubtask(task.id, subtaskInput));
+
+        subtaskInput.addEventListener('keydown', event => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                addSubtask(task.id, subtaskInput);
+            }
+        });
+
+        subtaskForm.append(subtaskInput, addSubtaskButton);
+        subtasks.appendChild(subtaskForm);
+        info.appendChild(subtasks);
 
         const editButton = document.createElement('button');
         editButton.type = 'button';
@@ -816,6 +972,14 @@ function renderArchive() {
                 category.className = 'category-badge';
                 category.textContent = task.category;
                 meta.appendChild(category);
+            }
+
+            const progress = getSubtaskProgress(task);
+            if (progress.total > 0) {
+                const progressBadge = document.createElement('span');
+                progressBadge.className = 'subtask-progress';
+                progressBadge.textContent = 'Подзадачи: ' + progress.completed + '/' + progress.total;
+                meta.appendChild(progressBadge);
             }
 
             if (deletedDate) {
