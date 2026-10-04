@@ -111,7 +111,7 @@ function normalizeTask(task) {
         : null;
 
     return {
-        id: typeof task.id === 'string' && task.id ? task.id : generateId(),
+        id: typeof task.id === 'string' && task.id.trim() ? task.id.trim() : generateId(),
         title: title.slice(0, MAX_TITLE_LENGTH),
         description: typeof task.description === 'string'
             ? task.description.trim().slice(0, MAX_DESCRIPTION_LENGTH) || null
@@ -126,7 +126,21 @@ function normalizeTask(task) {
 }
 
 function normalizeTasks(items) {
-    return items.map(normalizeTask).filter(Boolean);
+    const usedIds = new Set();
+
+    return items
+        .map(normalizeTask)
+        .filter(Boolean)
+        .map(task => {
+            let id = task.id;
+
+            while (usedIds.has(id)) {
+                id = generateId();
+            }
+
+            usedIds.add(id);
+            return { ...task, id };
+        });
 }
 
 function normalizeCategories(items) {
@@ -1023,7 +1037,6 @@ editDescInput.addEventListener('input', () => {
         editDescCounter.classList.remove('counter-warning', 'counter-error');
     }
 });
-editTitleCounter.textContent = `0 / ${MAX_TITLE_LENGTH}`;
 // ===== ИНИЦИАЛИЗАЦИЯ =====
 loadTheme(); // Загружаем тему перед остальными данными
 loadData();
