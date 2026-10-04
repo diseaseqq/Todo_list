@@ -119,8 +119,9 @@ function normalizeSubtasks(items) {
 }
 
 function getSubtaskProgress(task) {
-    const total = task.subtasks.length;
-    const completed = task.subtasks.filter(subtask => subtask.completed).length;
+    const subtasks = Array.isArray(task?.subtasks) ? task.subtasks : [];
+    const total = subtasks.length;
+    const completed = subtasks.filter(subtask => subtask.completed).length;
     return { completed, total };
 }
 
@@ -372,6 +373,7 @@ function addTask() {
         priority: document.getElementById('priority-input').value,
         dueDate: document.getElementById('date-input').value || null,
         category: document.getElementById('category-input').value || null,
+        subtasks: [],
         createdAt: Date.now()
     };
 
