@@ -1216,3 +1216,40 @@ textarea:focus-visible,
         margin-bottom: 8px;
     }
 }
+
+/* ===== ПОВТОРЯЮЩИЕСЯ ЗАДАЧИ ===== */
+.recurrence-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.recurrence-interval {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    background: var(--card);
+    color: var(--text);
+}
+
+.recurrence-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #e0e7ff;
+    color: #3730a3;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+body.dark-theme .recurrence-badge {
+    background: #312e81;
+    color: #e0e7ff;
+}
+
+@media (max-width: 768px) {
+    .recurrence-controls {
+        width: 100%;
+    }
+}
