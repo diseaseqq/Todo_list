@@ -615,6 +615,7 @@ function deleteCategory(categoryName) {
     // Сохраняем изменения
     saveCategories();
     saveTasks();
+    saveArchivedTasks();
     
     // Перерисовываем всё
     renderAll();
@@ -800,15 +801,7 @@ function renderArchive() {
             
             list.appendChild(li);
         });
-        
-        // Обработчики кнопок
-        list.querySelectorAll('.btn-restore').forEach(btn => {
-            btn.addEventListener('click', () => restoreTask(btn.dataset.id));
-        });
-        
-        list.querySelectorAll('.btn-delete-permanent').forEach(btn => {
-            btn.addEventListener('click', () => deletePermanently(btn.dataset.id));
-        });
+
     }
     
     updateArchiveCount();
