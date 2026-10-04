@@ -1,63 +1,82 @@
 // ===== МОДУЛЬ ТОСТ-УВЕДОМЛЕНИЙ =====
 const Toast = {
     container: null,
-    
-    // Инициализация
+
     init() {
         this.container = document.getElementById('toast-container');
     },
-    
-    // Показать уведомление
+
     show(message, type = 'info', duration = 3000, title = '') {
         if (!this.container) this.init();
-        
+        if (!this.container) return null;
+
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
-        
-        // Иконки для разных типов
+
         const icons = {
             success: '✅',
             error: '❌',
             warning: '⚠️',
-            info: '️'
+            info: 'ℹ️'
         };
-        
-        // Заголовки по умолчанию
+
         const defaultTitles = {
             success: 'Успешно',
             error: 'Ошибка',
             warning: 'Внимание',
             info: 'Информация'
         };
-        
-        toast.innerHTML = `
-            <div class="toast-icon">${icons[type] || icons.info}</div>
-            <div class="toast-content">
-                ${title ? `<div class="toast-title">${title}</div>` : ''}
-                <div class="toast-message">${message}</div>
-            </div>
-            <button class="toast-close" aria-label="Закрыть">×</button>
-            <div class="toast-progress" style="animation-duration: ${duration}ms; color: var(--${type === 'success' ? 'success' : type === 'error' ? 'danger' : type === 'warning' ? 'warning' : 'primary'})"></div>
-        `;
-        
+
+        const icon = document.createElement('div');
+        icon.className = 'toast-icon';
+        icon.textContent = icons[type] || icons.info;
+
+        const content = document.createElement('div');
+        content.className = 'toast-content';
+
+        const toastTitle = title || defaultTitles[type];
+        if (toastTitle) {
+            const titleElement = document.createElement('div');
+            titleElement.className = 'toast-title';
+            titleElement.textContent = toastTitle;
+            content.appendChild(titleElement);
+        }
+
+        const messageElement = document.createElement('div');
+        messageElement.className = 'toast-message';
+        messageElement.textContent = String(message);
+        content.appendChild(messageElement);
+
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'toast-close';
+        closeBtn.type = 'button';
+        closeBtn.setAttribute('aria-label', 'Закрыть');
+        closeBtn.textContent = '×';
+
+        const progress = document.createElement('div');
+        progress.className = 'toast-progress';
+        progress.style.animationDuration = `${duration}ms`;
+        const colorVar = type === 'success' ? 'success'
+            : type === 'error' ? 'danger'
+            : type === 'warning' ? 'warning'
+            : 'primary';
+        progress.style.color = `var(--${colorVar})`;
+
+        toast.append(icon, content, closeBtn, progress);
         this.container.appendChild(toast);
-        
-        // Закрытие по кнопке
-        const closeBtn = toast.querySelector('.toast-close');
+
         closeBtn.addEventListener('click', () => this.remove(toast));
-        
-        // Автоудаление
+
         if (duration > 0) {
             setTimeout(() => this.remove(toast), duration);
         }
-        
+
         return toast;
     },
-    
-    // Удалить уведомление
+
     remove(toast) {
-        if (toast.classList.contains('removing')) return;
-        
+        if (!toast || toast.classList.contains('removing')) return;
+
         toast.classList.add('removing');
         setTimeout(() => {
             if (toast.parentNode) {
@@ -65,24 +84,22 @@ const Toast = {
             }
         }, 300);
     },
-    
-    // Утилитарные методы
+
     success(message, duration = 3000, title = '') {
         return this.show(message, 'success', duration, title);
     },
-    
+
     error(message, duration = 4000, title = '') {
         return this.show(message, 'error', duration, title);
     },
-    
+
     warning(message, duration = 3500, title = '') {
         return this.show(message, 'warning', duration, title);
     },
-    
+
     info(message, duration = 3000, title = '') {
         return this.show(message, 'info', duration, title);
     }
 };
 
-// Инициализация при загрузке
 Toast.init();
