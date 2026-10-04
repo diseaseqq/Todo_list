@@ -125,6 +125,113 @@ function getSubtaskProgress(task) {
     return { completed, total };
 }
 
+function normalizeRecurrence(recurrence) {
+    if (!recurrence || typeof recurrence !== 'object') return null;
+
+    const type = ['daily', 'weekly', 'monthly', 'custom'].includes(recurrence.type)
+        ? recurrence.type
+        : null;
+
+    if (!type) return null;
+
+    const interval = type === 'custom'
+        ? Math.min(365, Math.max(1, Number.isInteger(recurrence.interval) ? recurrence.interval : 1))
+        : 1;
+
+    return { type, interval };
+}
+
+function getRecurrenceLabel(recurrence) {
+    if (!recurrence) return '';
+
+    if (recurrence.type === 'daily') return 'Повтор: каждый день';
+    if (recurrence.type === 'weekly') return 'Повтор: каждую неделю';
+    if (recurrence.type === 'monthly') return 'Повтор: каждый месяц';
+    if (recurrence.type === 'custom') return `Повтор: каждые ${recurrence.interval} дн.`;
+
+    return '';
+}
+
+function getRecurrenceFromInputs(selectId, intervalId) {
+    const type = document.getElementById(selectId).value;
+
+    if (!['daily', 'weekly', 'monthly', 'custom'].includes(type)) {
+        return null;
+    }
+
+    const interval = type === 'custom'
+        ? Math.min(365, Math.max(1, Number.parseInt(document.getElementById(intervalId).value, 10) || 1))
+        : 1;
+
+    return { type, interval };
+}
+
+function formatDateInput(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function addMonths(date, months) {
+    const result = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const targetMonth = result.getMonth() + months;
+    const target = new Date(result.getFullYear(), targetMonth, 1);
+    const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+    result.setFullYear(target.getFullYear(), target.getMonth(), Math.min(result.getDate(), lastDay));
+    return result;
+}
+
+function getNextRecurrenceDate(task) {
+    const recurrence = normalizeRecurrence(task.recurrence);
+    if (!recurrence) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let nextDate = task.dueDate ? parseDateOnly(task.dueDate) : new Date(today);
+    if (!nextDate) nextDate = new Date(today);
+
+    const advance = () => {
+        if (recurrence.type === 'daily') {
+            nextDate.setDate(nextDate.getDate() + 1);
+        } else if (recurrence.type === 'weekly') {
+            nextDate.setDate(nextDate.getDate() + 7);
+        } else if (recurrence.type === 'monthly') {
+            nextDate = addMonths(nextDate, 1);
+        } else {
+            nextDate.setDate(nextDate.getDate() + recurrence.interval);
+        }
+    };
+
+    do {
+        advance();
+    } while (nextDate <= today);
+
+    return formatDateInput(nextDate);
+}
+
+function createNextRecurringTask(task) {
+    const recurrence = normalizeRecurrence(task.recurrence);
+    if (!recurrence) return null;
+
+    const nextTask = {
+        id: generateId(),
+        title: task.title,
+        description: task.description || null,
+        completed: false,
+        priority: task.priority,
+        dueDate: getNextRecurrenceDate(task),
+        category: task.category || null,
+        subtasks: [],
+        recurrence,
+        createdAt: Date.now()
+    };
+
+    tasks.push(nextTask);
+    return nextTask;
+}
+
 function normalizeTask(task) {
     if (!task || typeof task !== 'object') return null;
 
@@ -154,6 +261,7 @@ function normalizeTask(task) {
         dueDate,
         category,
         subtasks: normalizeSubtasks(task.subtasks),
+        recurrence: normalizeRecurrence(task.recurrence),
         createdAt: Number.isFinite(task.createdAt) ? task.createdAt : Date.now(),
         ...(Number.isFinite(task.deletedAt) ? { deletedAt: task.deletedAt } : {})
     };
@@ -374,6 +482,7 @@ function addTask() {
         dueDate: document.getElementById('date-input').value || null,
         category: document.getElementById('category-input').value || null,
         subtasks: [],
+        recurrence: getRecurrenceFromInputs('recurrence-input', 'recurrence-interval'),
         createdAt: Date.now()
     };
 
@@ -382,6 +491,9 @@ function addTask() {
     titleInput.value = '';
     descriptionInput.value = ''; // 🆕 Очищаем описание
     document.getElementById('date-input').value = '';
+    document.getElementById('recurrence-input').value = '';
+    document.getElementById('recurrence-interval').value = 1;
+    updateRecurrenceIntervalVisibility('recurrence-input', 'recurrence-interval');
     renderAll();
     Toast.success(`Задача добавлена`, 3000, 'Успешно');
 }
@@ -407,13 +519,27 @@ function deleteTask(id) {
 
 function toggleTask(id) {
     const task = tasks.find(t => t.id === id);
-    if (task) {
-        task.completed = !task.completed;
+    if (!task) return;
+
+    const wasCompleted = task.completed;
+    task.completed = !task.completed;
+
+    if (!wasCompleted && task.completed && task.recurrence) {
+        const nextTask = createNextRecurringTask(task);
         saveTasks();
         renderAll();
-        const status = task.completed ? 'выполнена' : 'возвращена в активные';
-        Toast.success(`Задача "${task.title}" ${status}`, 2500, 'Статус изменён');
+        Toast.success(
+            `Задача "${task.title}" выполнена. Следующая: ${formatDate(nextTask.dueDate)}`,
+            3500,
+            'Повторяющаяся задача'
+        );
+        return;
     }
+
+    saveTasks();
+    renderAll();
+    const status = task.completed ? 'выполнена' : 'возвращена в активные';
+    Toast.success(`Задача "${task.title}" ${status}`, 2500, 'Статус изменён');
 }
 
 function openEditModal(id) {
@@ -427,6 +553,10 @@ function openEditModal(id) {
     document.getElementById('edit-priority').value = task.priority;
     document.getElementById('edit-date').value = task.dueDate || '';
     document.getElementById('edit-category').value = task.category || '';
+    const editRecurrence = task.recurrence || null;
+    document.getElementById('edit-recurrence').value = editRecurrence?.type || '';
+    document.getElementById('edit-recurrence-interval').value = editRecurrence?.interval || 1;
+    updateRecurrenceIntervalVisibility('edit-recurrence', 'edit-recurrence-interval');
     
     //  Обновляем счётчик описания
     const editDescCounter = document.querySelector('#edit-description + .textarea-counter');
@@ -471,6 +601,7 @@ function saveEdit() {
     task.priority = document.getElementById('edit-priority').value;
     task.dueDate = document.getElementById('edit-date').value || null;
     task.category = document.getElementById('edit-category').value || null;
+    task.recurrence = getRecurrenceFromInputs('edit-recurrence', 'edit-recurrence-interval');
 
     saveTasks();
     closeEditModal();
@@ -639,6 +770,14 @@ function renderTasks() {
             category.className = 'category-badge';
             category.textContent = task.category;
             meta.appendChild(category);
+        }
+
+        const recurrenceLabel = getRecurrenceLabel(task.recurrence);
+        if (recurrenceLabel) {
+            const recurrence = document.createElement('span');
+            recurrence.className = 'recurrence-badge';
+            recurrence.textContent = recurrenceLabel;
+            meta.appendChild(recurrence);
         }
 
         const progress = getSubtaskProgress(task);
@@ -1051,6 +1190,22 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
 document.getElementById('sort-select').addEventListener('change', (e) => {
     currentSort = e.target.value;
     renderTasks();
+});
+
+function updateRecurrenceIntervalVisibility(selectId, intervalId) {
+    const select = document.getElementById(selectId);
+    const interval = document.getElementById(intervalId);
+    const custom = select.value === 'custom';
+    interval.classList.toggle('hidden', !custom);
+    interval.setAttribute('aria-hidden', String(!custom));
+}
+
+document.getElementById('recurrence-input').addEventListener('change', () => {
+    updateRecurrenceIntervalVisibility('recurrence-input', 'recurrence-interval');
+});
+
+document.getElementById('edit-recurrence').addEventListener('change', () => {
+    updateRecurrenceIntervalVisibility('edit-recurrence', 'edit-recurrence-interval');
 });
 
 document.getElementById('apply-edit-btn').addEventListener('click', saveEdit);
