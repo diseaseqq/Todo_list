@@ -59,20 +59,26 @@ function validateTitle(title) {
 
 
 // ===== РАБОТА С localStorage =====
-function loadData() {
-    const savedTasks = localStorage.getItem('todo_tasks');
-    const savedArchived = localStorage.getItem('todo_archived');
-    const savedCategories = localStorage.getItem('todo_categories');
-    
-    if (savedTasks) tasks = JSON.parse(savedTasks);
-    if (savedArchived) archivedTasks = JSON.parse(savedArchived);
-    
-    if (savedCategories) {
-        categories = JSON.parse(savedCategories);
-    } else {
-        categories = [...defaultCategories];
-        saveCategories();
+function parseStoredArray(key, fallback = []) {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+
+    try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : fallback;
+    } catch (error) {
+        console.warn(`Не удалось загрузить данные из localStorage: ${key}`, error);
+        return fallback;
     }
+}
+
+function loadData() {
+    tasks = parseStoredArray('todo_tasks');
+    archivedTasks = parseStoredArray('todo_archived');
+
+    const savedCategories = parseStoredArray('todo_categories');
+    categories = mergeCategories(savedCategories, defaultCategories);
+    saveCategories();
 }
 function saveArchivedTasks() {
     localStorage.setItem('todo_archived', JSON.stringify(archivedTasks));
@@ -240,7 +246,7 @@ function saveEdit() {
     
     const error = validateTitle(newTitle);
     if (error) {
-        
+        Toast.warning(error, 3500, 'Некорректное название');
         document.getElementById('edit-title').focus();
         return;
     }
@@ -469,8 +475,13 @@ function deleteCategory(categoryName) {
         currentCategoryFilter = null;
     }
     
-    // Убираем категорию у всех задач, где она была выбрана
+    // Убираем категорию у активных и архивных задач
     tasks.forEach(task => {
+        if (task.category === categoryName) {
+            task.category = null;
+        }
+    });
+    archivedTasks.forEach(task => {
         if (task.category === categoryName) {
             task.category = null;
         }
@@ -498,7 +509,6 @@ function renderAll() {
     renderTasks();
     renderCategories();
     updateStats();
-    updateArchiveCount(); // ← Добавь эту строку
 }
 
 function escapeHtml(text) {
@@ -520,7 +530,7 @@ function restoreTask(id) {
     saveTasks();
     saveArchivedTasks();
     renderAll(); // ← renderAll() уже вызывает updateStats()
-    Toast.success(`Категория востановлена`, 3000, `Успешно`)
+    Toast.success(`Задача восстановлена`, 3000, `Успешно`)
     renderArchive();
 }
 
@@ -551,7 +561,7 @@ function restoreAllTasks() {
     saveTasks();
     saveArchivedTasks();
     renderAll(); // ← renderAll() уже вызывает updateStats()
-    Toast.success(`Задачи востановлены`, 3000, `Успешно`)
+    Toast.success(`Задачи восстановлены`, 3000, `Успешно`)
     renderArchive();
 }
 
@@ -814,4 +824,3 @@ loadTheme(); // Загружаем тему перед остальными да
 loadData();
 renderAll();
 
-// описание задач. в нижний правый угл пост уведомление действий, пункт 25, 26 проверить, темная тема и светлая 
