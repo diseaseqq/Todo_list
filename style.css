@@ -1253,3 +1253,254 @@ body.dark-theme .recurrence-badge {
         width: 100%;
     }
 }
+
+
+/* ===== НОВЫЙ ДИЗАЙН ФОРМЫ ДОБАВЛЕНИЯ ===== */
+:root {
+    --form-border: rgba(129, 140, 248, 0.24);
+    --form-surface: rgba(15, 23, 42, 0.46);
+}
+
+body.dark-theme {
+    --bg: #0f1428;
+    --card: #141d3a;
+    --text: #f4f7ff;
+    --text-light: #a7b0cc;
+    --border: #303b5d;
+    --shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+body.dark-theme .add-form {
+    background:
+        radial-gradient(circle at 15% 10%, rgba(79, 70, 229, 0.08), transparent 35%),
+        var(--card);
+    border: 1px solid rgba(129, 140, 248, 0.14);
+    box-shadow:
+        0 18px 45px rgba(0, 0, 0, 0.24),
+        inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.add-form {
+    display: grid;
+    grid-template-columns: minmax(240px, 1.05fr) minmax(130px, 0.58fr) minmax(140px, 0.68fr) minmax(150px, 0.72fr) minmax(190px, 0.9fr);
+    grid-template-rows: auto auto auto;
+    gap: 18px 12px;
+    align-items: start;
+    padding: 24px 28px 28px;
+    border-radius: 18px;
+    min-height: 250px;
+}
+
+.add-form-main {
+    display: contents;
+}
+
+.add-form .input-with-counter {
+    grid-column: 1;
+    grid-row: 1;
+    position: relative;
+    min-width: 0;
+}
+
+.add-form .task-input {
+    width: 100%;
+    height: 58px;
+    padding: 0 14px;
+    border: 1px solid var(--form-border);
+    border-radius: 11px;
+    background: var(--form-surface);
+    color: var(--text);
+    font-size: 15px;
+    transition: border-color .2s, box-shadow .2s, background .2s;
+}
+
+.add-form .task-input::placeholder,
+.add-form .task-textarea::placeholder {
+    color: #8f99b8;
+}
+
+.add-form .task-input:focus,
+.add-form .select-input:focus,
+.add-form .date-input:focus,
+.add-form .task-textarea:focus {
+    border-color: #818cf8;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.13);
+    outline: none;
+}
+
+.add-form .select-input,
+.add-form .date-input {
+    width: 100%;
+    height: 58px;
+    padding: 0 14px;
+    border: 1px solid var(--form-border);
+    border-radius: 11px;
+    background: var(--form-surface);
+    color: var(--text);
+    font-size: 15px;
+}
+
+.add-form #priority-input {
+    grid-column: 2;
+    grid-row: 1;
+    border-color: rgba(245, 158, 11, 0.42);
+}
+
+.add-form #date-input {
+    grid-column: 3;
+    grid-row: 1;
+    border-color: rgba(96, 165, 250, 0.38);
+}
+
+.add-form #category-input {
+    grid-column: 4;
+    grid-row: 1;
+    border-color: rgba(167, 139, 250, 0.42);
+}
+
+.add-form .recurrence-controls {
+    grid-column: 5;
+    grid-row: 1;
+    min-width: 0;
+}
+
+.add-form .recurrence-controls .select-input {
+    border-color: rgba(52, 211, 153, 0.46);
+}
+
+.add-form .recurrence-interval {
+    margin-top: 7px;
+    height: 42px;
+}
+
+.add-form .task-textarea {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    min-height: 126px;
+    max-height: 190px;
+    padding: 17px 18px;
+    border: 1px solid var(--form-border);
+    border-radius: 13px;
+    background: var(--form-surface);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.45;
+    resize: vertical;
+}
+
+.add-form .textarea-counter {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    margin-top: -11px;
+    padding-right: 14px;
+    font-size: 12px;
+}
+
+.add-form .btn-primary {
+    grid-column: 1;
+    grid-row: 4;
+    width: 100%;
+    min-height: 58px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #6366f1 0%, #5146e5 55%, #4f46e5 100%);
+    box-shadow: 0 10px 22px rgba(79, 70, 229, 0.28);
+    font-size: 15px;
+    font-weight: 600;
+    transition: transform .2s, box-shadow .2s, filter .2s;
+}
+
+.add-form .btn-primary::before {
+    content: '+';
+    display: inline-block;
+    margin-right: 10px;
+    font-size: 23px;
+    line-height: 0;
+    vertical-align: -2px;
+    font-weight: 400;
+}
+
+.add-form .btn-primary:hover {
+    background: linear-gradient(135deg, #7477ff 0%, #5b52ef 55%, #5148e9 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 13px 27px rgba(79, 70, 229, 0.34);
+}
+
+.add-form .btn-primary:active {
+    transform: translateY(0);
+}
+
+.add-form .char-counter-top {
+    position: absolute;
+    top: -22px;
+    right: 4px;
+    z-index: 1;
+    font-size: 12px;
+}
+
+.add-form .recurrence-controls .hidden {
+    display: none !important;
+}
+
+@media (max-width: 980px) {
+    .app {
+        max-width: 940px;
+    }
+
+    .add-form {
+        grid-template-columns: minmax(210px, 1.2fr) repeat(3, minmax(130px, 1fr));
+    }
+
+    .add-form .recurrence-controls {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
+
+    .add-form .task-textarea {
+        grid-row: 3;
+    }
+
+    .add-form .textarea-counter {
+        grid-row: 4;
+    }
+
+    .add-form .btn-primary {
+        grid-row: 5;
+    }
+}
+
+@media (max-width: 680px) {
+    body {
+        padding: 12px;
+    }
+
+    .add-form {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 20px;
+    }
+
+    .add-form .input-with-counter,
+    .add-form .select-input,
+    .add-form .date-input,
+    .add-form .recurrence-controls,
+    .add-form .task-textarea,
+    .add-form .textarea-counter,
+    .add-form .btn-primary {
+        width: 100%;
+    }
+
+    .add-form .char-counter-top {
+        top: -19px;
+    }
+
+    .add-form .textarea-counter {
+        margin-top: -5px;
+        align-self: flex-end;
+    }
+
+    .add-form .btn-primary {
+        min-height: 54px;
+    }
+}
