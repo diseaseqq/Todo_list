@@ -57,6 +57,17 @@
             <select id="category-input" aria-label="Категория задачи" class="select-input">
                 <option value="">Без категории</option>
             </select>
+            <div class="recurrence-controls">
+                <select id="recurrence-input" aria-label="Повторение задачи" class="select-input">
+                    <option value="">Без повторения</option>
+                    <option value="daily">Каждый день</option>
+                    <option value="weekly">Каждую неделю</option>
+                    <option value="monthly">Каждый месяц</option>
+                    <option value="custom">Пользовательский интервал</option>
+                </select>
+                <input id="recurrence-interval" class="recurrence-interval hidden" type="number" min="1" max="365" value="1"
+                    aria-label="Интервал повторения в днях" placeholder="Дней">
+            </div>
             <button id="add-btn" class="btn btn-primary" type="button">Добавить</button>
         </section>
 
@@ -117,6 +128,17 @@
             <select id="edit-category" aria-label="Категория задачи" class="select-input">
                 <option value="">Без категории</option>
             </select>
+            <div class="recurrence-controls">
+                <select id="edit-recurrence" aria-label="Повторение задачи" class="select-input">
+                    <option value="">Без повторения</option>
+                    <option value="daily">Каждый день</option>
+                    <option value="weekly">Каждую неделю</option>
+                    <option value="monthly">Каждый месяц</option>
+                    <option value="custom">Пользовательский интервал</option>
+                </select>
+                <input id="edit-recurrence-interval" class="recurrence-interval hidden" type="number" min="1" max="365" value="1"
+                    aria-label="Интервал повторения в днях" placeholder="Дней">
+            </div>
             <div class="modal-actions">
                 <button id="cancel-edit-btn" class="btn btn-secondary" type="button">Отмена</button>
                 <button id="apply-edit-btn" class="btn btn-primary" type="button">Применить</button>
