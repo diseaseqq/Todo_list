@@ -86,13 +86,7 @@ function saveArchivedTasks() {
 
 // Функция совмещения двух массивов категорий без дубликатов
 function mergeCategories(saved, defaults) {
-    // Создаём Set из сохранённых категорий (для быстрого поиска дубликатов)
-    const merged = new Set(saved);
-    
-    // Добавляем дефолтные категории, которых ещё нет
-    defaults.forEach(cat => merged.add(cat));
-    
-    // Возвращаем массив: сначала дефолтные (в их порядке), потом пользовательские
+    // Возвращаем массив: сначала дефолтные (в их порядке), потом пользовательские.
     const result = [...defaults];
     saved.forEach(cat => {
         if (!defaults.includes(cat)) {
