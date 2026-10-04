@@ -1120,3 +1120,13 @@ section h3 {
         min-width: auto;
     }
 }
+
+/* ===== ДОСТУПНОСТЬ ===== */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 2px;
+}
