@@ -325,6 +325,28 @@ section h3 {
 }
 
 /* ===== КАТЕГОРИИ ===== */
+.backup-panel {
+    margin: 16px 0;
+    padding: 16px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+}
+
+.backup-panel h3 {
+    margin-bottom: 12px;
+}
+
+.backup-panel .category-controls {
+    flex-wrap: wrap;
+}
+
+.backup-hint {
+    color: var(--text-light);
+    font-size: 13px;
+}
+
 .category-controls {
     display: flex;
     gap: 8px;

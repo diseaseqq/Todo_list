@@ -12,6 +12,8 @@ let lastFocusedElement = null;
 
 // ===== ТЕМНАЯ ТЕМА =====
 const THEME_KEY = 'todo_theme';
+let storageWarningPending = false;
+let storageWarningScheduled = false;
 
 // Загрузка сохраненной темы
 function loadTheme() {
@@ -75,6 +77,17 @@ function setStoredValue(key, value) {
         return true;
     } catch (error) {
         console.error(`Не удалось сохранить данные в localStorage: ${key}`, error);
+        storageWarningPending = true;
+        if (!storageWarningScheduled) {
+            storageWarningScheduled = true;
+            setTimeout(() => {
+                storageWarningScheduled = false;
+                if (storageWarningPending) {
+                    storageWarningPending = false;
+                    Toast.warning('Изменения не удалось сохранить в этом браузере. Освободите место в хранилище и повторите действие.', 0, 'Ошибка сохранения');
+                }
+            }, 0);
+        }
         return false;
     }
 }
@@ -316,7 +329,7 @@ function loadData() {
     saveCategories();
 }
 function saveArchivedTasks() {
-    setStoredValue('todo_archived', JSON.stringify(archivedTasks));
+    return setStoredValue('todo_archived', JSON.stringify(archivedTasks));
 }
 
 // Функция совмещения двух массивов категорий без дубликатов
@@ -335,11 +348,67 @@ function mergeCategories(saved, defaults) {
     return result;
 }
 function saveTasks() {
-    setStoredValue('todo_tasks', JSON.stringify(tasks));
+    return setStoredValue('todo_tasks', JSON.stringify(tasks));
 }
 
 function saveCategories() {
-    setStoredValue('todo_categories', JSON.stringify(categories));
+    return setStoredValue('todo_categories', JSON.stringify(categories));
+}
+
+function exportData() {
+    const backup = {
+        format: 'todo-list-backup',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        tasks,
+        archivedTasks,
+        categories
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `todo-backup-${formatDateInput(new Date())}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    Toast.success('Резервная копия скачана', 3000, 'Готово');
+}
+
+async function importData(file) {
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+        Toast.error('Размер файла резервной копии не должен превышать 10 МБ', 4000, 'Файл слишком большой');
+        return;
+    }
+
+    try {
+        const backup = JSON.parse(await file.text());
+        if (
+            !backup ||
+            backup.format !== 'todo-list-backup' ||
+            !Array.isArray(backup.tasks) ||
+            !Array.isArray(backup.archivedTasks) ||
+            !Array.isArray(backup.categories)
+        ) {
+            throw new Error('Неподдерживаемый формат резервной копии');
+        }
+
+        if (!confirm('Импорт заменит текущие задачи, архив и категории. Продолжить?')) return;
+
+        tasks = normalizeTasks(backup.tasks);
+        archivedTasks = normalizeTasks(backup.archivedTasks);
+        categories = mergeCategories(normalizeCategories(backup.categories), defaultCategories);
+        const savedTasks = saveTasks();
+        const savedArchive = saveArchivedTasks();
+        const savedCategories = saveCategories();
+        renderAll();
+        if (savedTasks && savedArchive && savedCategories) {
+            Toast.success('Резервная копия импортирована', 3000, 'Готово');
+        }
+    } catch (error) {
+        console.error('Не удалось импортировать резервную копию', error);
+        Toast.error('Не удалось прочитать файл. Выберите JSON-копию этого приложения.', 4000, 'Ошибка импорта');
+    }
 }
 
 // ===== УТИЛИТЫ =====
@@ -549,6 +618,13 @@ function openEditModal(id) {
     lastFocusedElement = document.activeElement;
     editingId = id;
     document.getElementById('edit-title').value = task.title;
+    const editTitleCounter = document.getElementById('edit-title').parentElement.querySelector('.char-counter');
+    if (editTitleCounter) {
+        const length = task.title.length;
+        editTitleCounter.textContent = `${length} / ${MAX_TITLE_LENGTH}`;
+        editTitleCounter.classList.toggle('counter-warning', length > 0 && length < MIN_TITLE_LENGTH);
+        editTitleCounter.classList.remove('counter-error');
+    }
     document.getElementById('edit-description').value = task.description || '';
     document.getElementById('edit-priority').value = task.priority;
     document.getElementById('edit-date').value = task.dueDate || '';
@@ -660,8 +736,11 @@ function getFilteredTasks() {
     }
 
     if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        result = result.filter(t => t.title.toLowerCase().includes(q));
+        const q = searchQuery.trim().toLocaleLowerCase('ru-RU');
+        result = result.filter(t =>
+            t.title.toLocaleLowerCase('ru-RU').includes(q) ||
+            (t.description || '').toLocaleLowerCase('ru-RU').includes(q)
+        );
     }
 
     const priorityOrder = { high: 3, medium: 2, low: 1 };
@@ -713,11 +792,15 @@ function renderTasks() {
     const list = document.getElementById('tasks-list');
     const emptyState = document.getElementById('empty-state');
     const filtered = getFilteredTasks();
+    const emptyStateMessage = document.getElementById('empty-state-message');
 
     list.replaceChildren();
 
     if (filtered.length === 0) {
         emptyState.classList.remove('hidden');
+        emptyStateMessage.textContent = tasks.length === 0
+            ? 'Задач пока нет. Добавьте первую!'
+            : 'Нет задач, подходящих под выбранные условия.';
         return;
     }
 
@@ -1160,6 +1243,15 @@ function renderArchive() {
 }
 
 // ===== ОБРАБОТЧИКИ СОБЫТИЙ =====
+document.getElementById('export-data-btn').addEventListener('click', exportData);
+document.getElementById('import-data-btn').addEventListener('click', () => {
+    document.getElementById('import-data-input').click();
+});
+document.getElementById('import-data-input').addEventListener('change', async event => {
+    await importData(event.target.files[0]);
+    event.target.value = '';
+});
+
 document.getElementById('add-btn').addEventListener('click', addTask);
 
 document.getElementById('task-input').addEventListener('keypress', (e) => {

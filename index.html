@@ -80,6 +80,16 @@
             </div>
             <div id="categories-list" class="categories-list"></div>
         </section>
+
+        <section class="categories-panel backup-panel" aria-labelledby="backup-heading">
+            <h3 id="backup-heading">Резервная копия</h3>
+            <div class="category-controls">
+                <button id="export-data-btn" class="btn btn-secondary" type="button">Скачать копию</button>
+                <button id="import-data-btn" class="btn btn-secondary" type="button">Импортировать копию</button>
+                <input id="import-data-input" type="file" accept="application/json,.json" class="hidden" aria-label="Выберите файл резервной копии">
+            </div>
+            <p class="backup-hint">Копия содержит задачи, архив и категории. Импорт заменит эти данные.</p>
+        </section>
         <!-- Панель категорий -->
 
 
@@ -107,7 +117,7 @@
             <div class="subtasks-hint">У каждой задачи можно добавлять подзадачи. Прогресс считается автоматически.</div>
             <ul id="tasks-list" class="tasks-list"></ul>
             <div id="empty-state" class="empty-state hidden">
-                <p>Задач пока нет. Добавьте первую!</p>
+                <p id="empty-state-message">Задач пока нет. Добавьте первую!</p>
             </div>
         </section>
     </div>
