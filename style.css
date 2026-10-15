@@ -5,17 +5,17 @@
 }
 
 :root {
-    --primary: #4f46e5;
-    --primary-hover: #4338ca;
+    --primary: #5956c8;
+    --primary-hover: #4946ad;
     --danger: #ef4444;
     --success: #10b981;
     --warning: #f59e0b;
-    --bg: #f3f4f6;
-    --card: #ffffff;
-    --text: #1f2937;
-    --text-light: #6b7280;
-    --border: #e5e7eb;
-    --shadow: 0 1px 3px rgba(0,0,0,0.1);
+    --bg: #f4f2ee;
+    --card: #fffefa;
+    --text: #30333d;
+    --text-light: #727581;
+    --border: #e7e3dc;
+    --shadow: 0 2px 8px rgba(54, 47, 35, 0.055);
 }
 
 /* Тёмная тема */
@@ -1279,8 +1279,8 @@ body.dark-theme .recurrence-badge {
 
 /* ===== НОВЫЙ ДИЗАЙН ФОРМЫ ДОБАВЛЕНИЯ ===== */
 :root {
-    --form-border: rgba(129, 140, 248, 0.24);
-    --form-surface: rgba(15, 23, 42, 0.46);
+    --form-border: #e1ddec;
+    --form-surface: #fffefa;
 }
 
 body.dark-theme {
@@ -1290,6 +1290,8 @@ body.dark-theme {
     --text-light: #a7b0cc;
     --border: #303b5d;
     --shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+    --form-border: rgba(129, 140, 248, 0.24);
+    --form-surface: rgba(15, 23, 42, 0.46);
 }
 
 body.dark-theme .add-form {
@@ -1338,7 +1340,7 @@ body.dark-theme .add-form {
 
 .add-form .task-input::placeholder,
 .add-form .task-textarea::placeholder {
-    color: #8f99b8;
+    color: var(--text-light);
 }
 
 .add-form .task-input:focus,
