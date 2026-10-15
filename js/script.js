@@ -559,6 +559,8 @@ function addTask() {
     saveTasks();
     titleInput.value = '';
     descriptionInput.value = ''; // 🆕 Очищаем описание
+    searchQuery = '';
+    document.getElementById('search-input').value = '';
     document.getElementById('date-input').value = '';
     document.getElementById('recurrence-input').value = '';
     document.getElementById('recurrence-interval').value = 1;
