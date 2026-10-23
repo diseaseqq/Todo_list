@@ -5,7 +5,7 @@ namespace TodoList\Http;
 
 final class Router
 {
-    /** @var array<string, array<string, array{handler: callable(Request): void, authenticated: bool}>> */
+    /** @var array<string, array<string, array{handler: callable(Request): void, authenticated: bool, csrf: bool}>> */
     private array $routes = [];
 
     public function __construct(private readonly \TodoList\Config\AppConfig $config)
@@ -13,11 +13,18 @@ final class Router
     }
 
     /** @param callable(Request): void $handler */
-    public function add(string $method, string $path, callable $handler, bool $authenticated = false): void
+    public function add(
+        string $method,
+        string $path,
+        callable $handler,
+        bool $authenticated = false,
+        bool $csrf = false,
+    ): void
     {
         $this->routes[$path][strtoupper($method)] = [
             'handler' => $handler,
             'authenticated' => $authenticated,
+            'csrf' => $csrf,
         ];
     }
 
@@ -37,6 +44,10 @@ final class Router
         if ($routeDefinition['authenticated']) {
             Session::start($this->config);
             Session::requireUserId();
+        }
+        if ($routeDefinition['csrf']) {
+            Session::start($this->config);
+            Session::verifyCsrfToken($request->header('x-csrf-token'));
         }
 
         ($routeDefinition['handler'])($request);

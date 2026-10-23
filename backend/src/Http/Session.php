@@ -64,6 +64,24 @@ final class Session
         return is_string($userId) && $userId !== '' ? $userId : null;
     }
 
+    public static function csrfToken(): string
+    {
+        self::assertStarted();
+        if (!isset($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token'])) {
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+        }
+        return $_SESSION['csrf_token'];
+    }
+
+    public static function verifyCsrfToken(?string $token): void
+    {
+        self::assertStarted();
+        $expected = $_SESSION['csrf_token'] ?? null;
+        if (!is_string($expected) || $token === null || !hash_equals($expected, $token)) {
+            JsonResponse::error('csrf_failed', 'A valid CSRF token is required.', 403);
+        }
+    }
+
     public static function requireUserId(): string
     {
         $userId = self::currentUserId();

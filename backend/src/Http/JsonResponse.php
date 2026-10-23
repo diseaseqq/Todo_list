@@ -14,4 +14,9 @@ final class JsonResponse
         echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
         exit;
     }
+
+    public static function error(string $code, string $message, int $status): never
+    {
+        self::send(['error' => ['code' => $code, 'message' => $message]], $status);
+    }
 }
