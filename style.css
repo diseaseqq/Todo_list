@@ -170,6 +170,87 @@ body {
     margin: 0 auto;
 }
 
+.auth-view {
+    min-height: calc(100vh - 40px);
+    display: grid;
+    place-items: center;
+}
+
+.auth-loading {
+    padding: 20px;
+    color: var(--text-light);
+}
+
+.auth-card {
+    width: min(100%, 420px);
+    display: grid;
+    gap: 12px;
+    padding: 28px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--card);
+    box-shadow: var(--shadow);
+}
+
+.auth-card h1 {
+    color: var(--primary);
+    font-size: 1.6rem;
+}
+
+.auth-card p {
+    color: var(--text-light);
+    line-height: 1.5;
+}
+
+.auth-card label {
+    font-weight: 600;
+    margin-top: 4px;
+}
+
+.auth-card input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+}
+
+.auth-card .btn {
+    margin-top: 8px;
+}
+
+.auth-error {
+    color: var(--danger) !important;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.account-email {
+    color: var(--text-light);
+    font-size: 0.9rem;
+}
+
+@media (max-width: 600px) {
+    .header-top {
+        align-items: flex-start;
+    }
+
+    .header-actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .account-email {
+        display: none;
+    }
+}
+
 /* ===== ШАПКА ===== */
 .header {
     background: var(--card);
@@ -416,6 +497,27 @@ section h3 {
     width: 20px;
     height: 20px;
     flex-shrink: 0;
+}
+
+.category-edit-btn {
+    min-width: 22px;
+    height: 22px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-light);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.category-edit-btn:hover {
+    background: rgba(89, 86, 200, 0.14);
+    color: var(--primary);
+}
+
+.category-tag.active .category-edit-btn {
+    color: white;
 }
 
 .category-delete-btn:hover {

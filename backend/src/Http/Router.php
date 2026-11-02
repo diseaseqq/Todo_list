@@ -31,6 +31,28 @@ final class Router
     public function dispatch(Request $request): void
     {
         $route = $this->routes[$request->path] ?? null;
+        $params = [];
+        if ($route === null) {
+            foreach ($this->routes as $routePath => $methods) {
+                $patternParts = [];
+                foreach (explode('/', trim($routePath, '/')) as $part) {
+                    if (preg_match('/^\{([A-Za-z][A-Za-z0-9_]*)\}$/', $part, $matches)) {
+                        $patternParts[] = '(?P<' . $matches[1] . '>[^/]+)';
+                    } else {
+                        $patternParts[] = preg_quote($part, '~');
+                    }
+                }
+                if (preg_match('~^/' . implode('/', $patternParts) . '/?$~', $request->path, $matches)) {
+                    $route = $methods;
+                    foreach ($matches as $key => $value) {
+                        if (is_string($key)) {
+                            $params[$key] = rawurldecode($value);
+                        }
+                    }
+                    break;
+                }
+            }
+        }
         if ($route === null) {
             JsonResponse::send(['error' => ['code' => 'not_found', 'message' => 'Route not found.']], 404);
         }
@@ -50,6 +72,6 @@ final class Router
             Session::verifyCsrfToken($request->header('x-csrf-token'));
         }
 
-        ($routeDefinition['handler'])($request);
+        ($routeDefinition['handler'])($request->withParams($params));
     }
 }

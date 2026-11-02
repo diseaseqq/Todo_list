@@ -11,6 +11,7 @@ final class Request
         public readonly array $query,
         public readonly array $body,
         public readonly array $headers,
+        public readonly array $params = [],
     ) {
     }
 
@@ -46,5 +47,11 @@ final class Request
     {
         $value = $this->headers[strtolower($name)] ?? null;
         return is_string($value) ? $value : null;
+    }
+
+    /** @param array<string, string> $params */
+    public function withParams(array $params): self
+    {
+        return new self($this->method, $this->path, $this->query, $this->body, $this->headers, $params);
     }
 }

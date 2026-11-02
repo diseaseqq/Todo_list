@@ -27,6 +27,12 @@ final class SqliteConnection
 
         $pdo->exec('PRAGMA foreign_keys = ON');
         $pdo->exec('PRAGMA busy_timeout = 5000');
+        $pdo->sqliteCreateFunction(
+            'unicode_fold',
+            static fn (?string $value): string => mb_convert_case($value ?? '', MB_CASE_FOLD, 'UTF-8'),
+            1,
+            PDO::SQLITE_DETERMINISTIC,
+        );
 
         return $pdo;
     }

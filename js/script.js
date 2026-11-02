@@ -1,7 +1,6 @@
 // ===== СОСТОЯНИЕ ПРИЛОЖЕНИЯ =====
 let tasks = [];
 let categories = [];
-const defaultCategories = ['Работа', 'Личное', 'Учёба', 'Покупки', 'Спорт', 'Другое'];
 let archivedTasks = [];
 let currentFilter = 'all';
 let currentCategoryFilter = null;
@@ -9,6 +8,143 @@ let currentSort = 'created';
 let searchQuery = '';
 let editingId = null;
 let lastFocusedElement = null;
+let csrfToken = null;
+let currentAccount = null;
+let categoriesById = new Map();
+let categoryIdsByName = new Map();
+
+async function apiRequest(path, options = {}) {
+    const headers = { Accept: 'application/json' };
+    const requestOptions = {
+        method: options.method || 'GET',
+        credentials: 'same-origin',
+        headers
+    };
+    if (options.body !== undefined) {
+        headers['Content-Type'] = 'application/json';
+        requestOptions.body = JSON.stringify(options.body);
+    }
+    if (options.csrf !== false && requestOptions.method !== 'GET') {
+        if (!csrfToken) await refreshCsrfToken();
+        headers['X-CSRF-Token'] = csrfToken;
+    }
+
+    const response = await fetch(path, requestOptions);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        const error = new Error(payload?.error?.message || 'Не удалось выполнить запрос к серверу.');
+        error.code = payload?.error?.code || 'request_failed';
+        error.status = response.status;
+        throw error;
+    }
+    return payload;
+}
+
+async function refreshCsrfToken() {
+    const payload = await apiRequest('/api/auth/csrf', { csrf: false });
+    csrfToken = payload.csrf_token;
+    return csrfToken;
+}
+
+function showLogin(message = '') {
+    currentAccount = null;
+    tasks = [];
+    archivedTasks = [];
+    categories = [];
+    categoriesById.clear();
+    categoryIdsByName.clear();
+    editingId = null;
+    document.getElementById('task-app').classList.add('hidden');
+    document.getElementById('archive-btn').classList.add('hidden');
+    document.getElementById('edit-modal').classList.add('hidden');
+    document.getElementById('archive-modal').classList.add('hidden');
+    document.getElementById('login-view').classList.remove('hidden');
+    document.getElementById('auth-loading').classList.add('hidden');
+    document.getElementById('login-form').classList.remove('hidden');
+    const error = document.getElementById('login-error');
+    error.textContent = message;
+    error.classList.toggle('hidden', !message);
+}
+
+function showTaskApp(account) {
+    currentAccount = account;
+    document.getElementById('account-email').textContent = account.email;
+    document.getElementById('login-view').classList.add('hidden');
+    document.getElementById('task-app').classList.remove('hidden');
+    document.getElementById('archive-btn').classList.remove('hidden');
+}
+
+function mapApiSubtask(subtask) {
+    return { id: subtask.id, title: subtask.title, completed: Boolean(subtask.is_completed), sortOrder: Number(subtask.sort_order) };
+}
+
+function mapApiTask(task) {
+    const category = task.category_id ? categoriesById.get(task.category_id)?.name || null : null;
+    return {
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        completed: Boolean(task.is_completed),
+        priority: task.priority,
+        dueDate: task.due_date,
+        category,
+        subtasks: (task.subtasks || []).map(mapApiSubtask),
+        recurrence: normalizeRecurrence(task.recurrence),
+        createdAt: Date.parse(task.created_at) || Date.now(),
+        deletedAt: task.archived_at ? Date.parse(task.archived_at) || Date.now() : undefined,
+        version: Number(task.version)
+    };
+}
+
+function toApiTask(task) {
+    const recurrence = normalizeRecurrence(task.recurrence);
+    return {
+        title: task.title,
+        description: task.description || null,
+        priority: task.priority,
+        due_date: task.dueDate || null,
+        category_id: task.category ? categoryIdsByName.get(task.category) || null : null,
+        recurrence: recurrence ? { type: recurrence.type, ...(recurrence.type === 'custom' ? { interval: recurrence.interval } : {}) } : null
+    };
+}
+
+async function loadRemoteData() {
+    const [categoryPayload, activePayload, archivePayload] = await Promise.all([
+        apiRequest('/api/categories'),
+        apiRequest('/api/tasks?archived=false&sort=created&direction=desc'),
+        apiRequest('/api/tasks?archived=true&sort=created&direction=desc')
+    ]);
+    categoriesById = new Map(categoryPayload.categories.map(category => [category.id, category]));
+    categoryIdsByName = new Map(categoryPayload.categories.map(category => [category.name, category.id]));
+    categories = categoryPayload.categories.map(category => category.name);
+    tasks = activePayload.tasks.map(mapApiTask);
+    archivedTasks = archivePayload.tasks.map(mapApiTask);
+    renderAll();
+    updateArchiveCount();
+    if (!document.getElementById('archive-modal').classList.contains('hidden')) renderArchive();
+}
+
+function reportApiError(error) {
+    if (error.status === 401) {
+        showLogin('Сессия завершилась. Войдите снова.');
+        return;
+    }
+    if (error.code === 'csrf_failed') {
+        refreshCsrfToken().catch(() => {});
+        Toast.warning('Защитный токен обновлён. Повторите действие.', 4000, 'Повторите запрос');
+        return;
+    }
+    if (error.status === 409 && editingId !== null) {
+        closeEditModal();
+        Toast.warning('Задача изменилась на сервере. Актуальные данные загружены; откройте задачу заново.', 4500, 'Нужно обновить задачу');
+        loadRemoteData().catch(() => {});
+        return;
+    }
+    Toast.error(error.message || 'Не удалось сохранить изменения.', 4500, 'Ошибка сервера');
+    if (error.status === 409) {
+        loadRemoteData().catch(() => {});
+    }
+}
 
 // ===== ТЕМНАЯ ТЕМА =====
 const THEME_KEY = 'todo_theme';
@@ -92,45 +228,6 @@ function setStoredValue(key, value) {
     }
 }
 
-function parseStoredArray(key, fallback = []) {
-    const raw = getStoredValue(key);
-    if (!raw) return fallback;
-
-    try {
-        const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed : fallback;
-    } catch (error) {
-        console.warn(`Не удалось загрузить данные из localStorage: ${key}`, error);
-        return fallback;
-    }
-}
-
-function normalizeSubtasks(items) {
-    const usedIds = new Set();
-
-    if (!Array.isArray(items)) return [];
-
-    return items
-        .filter(item => item && typeof item === 'object')
-        .map(item => {
-            const title = typeof item.title === 'string' ? item.title.trim() : '';
-            if (!title) return null;
-
-            let id = typeof item.id === 'string' && item.id.trim() ? item.id.trim() : generateId();
-            while (usedIds.has(id)) {
-                id = generateId();
-            }
-            usedIds.add(id);
-
-            return {
-                id,
-                title: title.slice(0, 150),
-                completed: Boolean(item.completed)
-            };
-        })
-        .filter(Boolean);
-}
-
 function getSubtaskProgress(task) {
     const subtasks = Array.isArray(task?.subtasks) ? task.subtasks : [];
     const total = subtasks.length;
@@ -186,175 +283,6 @@ function formatDateInput(date) {
     return `${year}-${month}-${day}`;
 }
 
-function addMonths(date, months) {
-    const result = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const targetMonth = result.getMonth() + months;
-    const target = new Date(result.getFullYear(), targetMonth, 1);
-    const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
-    result.setFullYear(target.getFullYear(), target.getMonth(), Math.min(result.getDate(), lastDay));
-    return result;
-}
-
-function getNextRecurrenceDate(task) {
-    const recurrence = normalizeRecurrence(task.recurrence);
-    if (!recurrence) return null;
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    let nextDate = task.dueDate ? parseDateOnly(task.dueDate) : new Date(today);
-    if (!nextDate) nextDate = new Date(today);
-
-    const advance = () => {
-        if (recurrence.type === 'daily') {
-            nextDate.setDate(nextDate.getDate() + 1);
-        } else if (recurrence.type === 'weekly') {
-            nextDate.setDate(nextDate.getDate() + 7);
-        } else if (recurrence.type === 'monthly') {
-            nextDate = addMonths(nextDate, 1);
-        } else {
-            nextDate.setDate(nextDate.getDate() + recurrence.interval);
-        }
-    };
-
-    do {
-        advance();
-    } while (nextDate <= today);
-
-    return formatDateInput(nextDate);
-}
-
-function createNextRecurringTask(task) {
-    const recurrence = normalizeRecurrence(task.recurrence);
-    if (!recurrence) return null;
-
-    const nextTask = {
-        id: generateId(),
-        title: task.title,
-        description: task.description || null,
-        completed: false,
-        priority: task.priority,
-        dueDate: getNextRecurrenceDate(task),
-        category: task.category || null,
-        subtasks: [],
-        recurrence,
-        createdAt: Date.now()
-    };
-
-    tasks.push(nextTask);
-    return nextTask;
-}
-
-function normalizeTask(task) {
-    if (!task || typeof task !== 'object') return null;
-
-    const title = typeof task.title === 'string' ? task.title.trim() : '';
-    if (!title) return null;
-
-    const priority = ['low', 'medium', 'high'].includes(task.priority)
-        ? task.priority
-        : 'medium';
-
-    const dueDate = typeof task.dueDate === 'string' && parseDateOnly(task.dueDate)
-        ? task.dueDate
-        : null;
-
-    const category = typeof task.category === 'string' && task.category.trim()
-        ? task.category.trim()
-        : null;
-
-    return {
-        id: typeof task.id === 'string' && task.id.trim() ? task.id.trim() : generateId(),
-        title: title.slice(0, MAX_TITLE_LENGTH),
-        description: typeof task.description === 'string'
-            ? task.description.trim().slice(0, MAX_DESCRIPTION_LENGTH) || null
-            : null,
-        completed: Boolean(task.completed),
-        priority,
-        dueDate,
-        category,
-        subtasks: normalizeSubtasks(task.subtasks),
-        recurrence: normalizeRecurrence(task.recurrence),
-        createdAt: Number.isFinite(task.createdAt) ? task.createdAt : Date.now(),
-        ...(Number.isFinite(task.deletedAt) ? { deletedAt: task.deletedAt } : {})
-    };
-}
-
-function normalizeTasks(items) {
-    const usedIds = new Set();
-
-    return items
-        .map(normalizeTask)
-        .filter(Boolean)
-        .map(task => {
-            let id = task.id;
-
-            while (usedIds.has(id)) {
-                id = generateId();
-            }
-
-            usedIds.add(id);
-            return { ...task, id };
-        });
-}
-
-function normalizeCategories(items) {
-    const result = [];
-    const seen = new Set();
-
-    items
-        .filter(item => typeof item === 'string')
-        .map(item => item.trim())
-        .filter(Boolean)
-        .forEach(category => {
-            const key = category.toLocaleLowerCase('ru-RU');
-            if (!seen.has(key)) {
-                seen.add(key);
-                result.push(category);
-            }
-        });
-
-    return result;
-}
-
-function loadData() {
-    tasks = normalizeTasks(parseStoredArray('todo_tasks'));
-    archivedTasks = normalizeTasks(parseStoredArray('todo_archived'));
-
-    const savedCategories = normalizeCategories(parseStoredArray('todo_categories'));
-    categories = mergeCategories(savedCategories, defaultCategories);
-
-    saveTasks();
-    saveArchivedTasks();
-    saveCategories();
-}
-function saveArchivedTasks() {
-    return setStoredValue('todo_archived', JSON.stringify(archivedTasks));
-}
-
-// Функция совмещения двух массивов категорий без дубликатов
-function mergeCategories(saved, defaults) {
-    const result = [...defaults];
-    const existing = new Set(defaults.map(cat => cat.toLocaleLowerCase('ru-RU')));
-
-    saved.forEach(cat => {
-        const key = cat.toLocaleLowerCase('ru-RU');
-        if (!existing.has(key)) {
-            existing.add(key);
-            result.push(cat);
-        }
-    });
-
-    return result;
-}
-function saveTasks() {
-    return setStoredValue('todo_tasks', JSON.stringify(tasks));
-}
-
-function saveCategories() {
-    return setStoredValue('todo_categories', JSON.stringify(categories));
-}
-
 function exportData() {
     const backup = {
         format: 'todo-list-backup',
@@ -374,48 +302,7 @@ function exportData() {
     Toast.success('Резервная копия скачана', 3000, 'Готово');
 }
 
-async function importData(file) {
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-        Toast.error('Размер файла резервной копии не должен превышать 10 МБ', 4000, 'Файл слишком большой');
-        return;
-    }
-
-    try {
-        const backup = JSON.parse(await file.text());
-        if (
-            !backup ||
-            backup.format !== 'todo-list-backup' ||
-            !Array.isArray(backup.tasks) ||
-            !Array.isArray(backup.archivedTasks) ||
-            !Array.isArray(backup.categories)
-        ) {
-            throw new Error('Неподдерживаемый формат резервной копии');
-        }
-
-        if (!confirm('Импорт заменит текущие задачи, архив и категории. Продолжить?')) return;
-
-        tasks = normalizeTasks(backup.tasks);
-        archivedTasks = normalizeTasks(backup.archivedTasks);
-        categories = mergeCategories(normalizeCategories(backup.categories), defaultCategories);
-        const savedTasks = saveTasks();
-        const savedArchive = saveArchivedTasks();
-        const savedCategories = saveCategories();
-        renderAll();
-        if (savedTasks && savedArchive && savedCategories) {
-            Toast.success('Резервная копия импортирована', 3000, 'Готово');
-        }
-    } catch (error) {
-        console.error('Не удалось импортировать резервную копию', error);
-        Toast.error('Не удалось прочитать файл. Выберите JSON-копию этого приложения.', 4000, 'Ошибка импорта');
-    }
-}
-
 // ===== УТИЛИТЫ =====
-function generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
-}
-
 function parseDateOnly(dateStr) {
     if (typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         return null;
@@ -462,7 +349,7 @@ function getPriorityLabel(p) {
 }
 
 // ===== CRUD ОПЕРАЦИИ =====
-function addSubtask(taskId, input) {
+async function addSubtask(taskId, input) {
     const task = tasks.find(item => item.id === taskId);
     if (!task) return;
 
@@ -478,14 +365,17 @@ function addSubtask(taskId, input) {
         return;
     }
 
-    task.subtasks.push({
-        id: generateId(),
-        title,
-        completed: false
-    });
-
-    saveTasks();
-    renderAll();
+    try {
+        const response = await apiRequest(`/api/tasks/${encodeURIComponent(taskId)}/subtasks`, {
+            method: 'POST', body: { task_version: task.version, title }
+        });
+        task.version = response.task_version;
+        task.subtasks = response.subtasks.map(mapApiSubtask);
+        renderAll();
+    } catch (error) {
+        reportApiError(error);
+        return;
+    }
 
     requestAnimationFrame(() => {
         const nextInput = document.querySelector('.subtask-input[data-task-id="' + taskId + '"]');
@@ -493,31 +383,45 @@ function addSubtask(taskId, input) {
     });
 }
 
-function toggleSubtask(taskId, subtaskId) {
+async function toggleSubtask(taskId, subtaskId) {
     const task = tasks.find(item => item.id === taskId);
     if (!task) return;
 
     const subtask = task.subtasks.find(item => item.id === subtaskId);
     if (!subtask) return;
 
-    subtask.completed = !subtask.completed;
-    saveTasks();
-    renderAll();
+    try {
+        const response = await apiRequest(`/api/tasks/${encodeURIComponent(taskId)}/subtasks/${encodeURIComponent(subtaskId)}`, {
+            method: 'PATCH', body: { task_version: task.version, is_completed: !subtask.completed }
+        });
+        task.version = response.task_version;
+        task.subtasks = response.subtasks.map(mapApiSubtask);
+        renderAll();
+    } catch (error) {
+        reportApiError(error);
+    }
 }
 
-function deleteSubtask(taskId, subtaskId) {
+async function deleteSubtask(taskId, subtaskId) {
     const task = tasks.find(item => item.id === taskId);
     if (!task) return;
 
     const index = task.subtasks.findIndex(item => item.id === subtaskId);
     if (index === -1) return;
 
-    task.subtasks.splice(index, 1);
-    saveTasks();
-    renderAll();
+    try {
+        const response = await apiRequest(`/api/tasks/${encodeURIComponent(taskId)}/subtasks/${encodeURIComponent(subtaskId)}`, {
+            method: 'DELETE', body: { task_version: task.version }
+        });
+        task.version = response.task_version;
+        task.subtasks = response.subtasks.map(mapApiSubtask);
+        renderAll();
+    } catch (error) {
+        reportApiError(error);
+    }
 }
 
-function addTask() {
+async function addTask() {
     const titleInput = document.getElementById('task-input');
     const descriptionInput = document.getElementById('task-description');
     const title = titleInput.value.trim();
@@ -543,20 +447,21 @@ function addTask() {
     }
 
     const task = {
-        id: generateId(),
         title: title,
-        description: description || null, // 🆕 Описание (null если пустое)
-        completed: false,
+        description: description || null,
         priority: document.getElementById('priority-input').value,
         dueDate: document.getElementById('date-input').value || null,
         category: document.getElementById('category-input').value || null,
-        subtasks: [],
         recurrence: getRecurrenceFromInputs('recurrence-input', 'recurrence-interval'),
-        createdAt: Date.now()
     };
 
-    tasks.push(task);
-    saveTasks();
+    try {
+        const payload = await apiRequest('/api/tasks', { method: 'POST', body: toApiTask(task) });
+        tasks.unshift(mapApiTask(payload.task));
+    } catch (error) {
+        reportApiError(error);
+        return;
+    }
     titleInput.value = '';
     descriptionInput.value = ''; // 🆕 Очищаем описание
     searchQuery = '';
@@ -569,47 +474,49 @@ function addTask() {
     Toast.success(`Задача добавлена`, 3000, 'Успешно');
 }
 
-function deleteTask(id) {
+async function deleteTask(id) {
     if (!confirm('Переместить задачу в архив?')) return;
     
     const taskIndex = tasks.findIndex(t => t.id === id);
     if (taskIndex === -1) return;
     
-    // Удаляем из активных задач
-    const [task] = tasks.splice(taskIndex, 1);
-    
-    // Добавляем в архив с датой удаления
-    task.deletedAt = Date.now();
-    archivedTasks.push(task);
-    
-    saveTasks();
-    saveArchivedTasks();
+    const task = tasks[taskIndex];
+    try {
+        const response = await apiRequest(`/api/tasks/${encodeURIComponent(id)}/archive`, {
+            method: 'POST', body: { version: task.version }
+        });
+        tasks.splice(taskIndex, 1);
+        archivedTasks.unshift(mapApiTask(response.task));
+    } catch (error) {
+        reportApiError(error);
+        return;
+    }
     renderAll();
     Toast.success(`Задача перемещена в архив`, 3000, 'Успешно');
 }
 
-function toggleTask(id) {
+async function toggleTask(id) {
     const task = tasks.find(t => t.id === id);
     if (!task) return;
 
-    const wasCompleted = task.completed;
-    task.completed = !task.completed;
-
-    if (!wasCompleted && task.completed && task.recurrence) {
-        const nextTask = createNextRecurringTask(task);
-        saveTasks();
-        renderAll();
-        Toast.success(
-            `Задача "${task.title}" выполнена. Следующая: ${formatDate(nextTask.dueDate)}`,
-            3500,
-            'Повторяющаяся задача'
-        );
+    const nextCompleted = !task.completed;
+    try {
+        const response = await apiRequest(`/api/tasks/${encodeURIComponent(id)}/complete`, {
+            method: 'POST', body: { version: task.version, is_completed: nextCompleted }
+        });
+        const updated = mapApiTask(response.task);
+        tasks[tasks.findIndex(item => item.id === id)] = updated;
+    } catch (error) {
+        reportApiError(error);
         return;
     }
-
-    saveTasks();
+    try {
+        await loadRemoteData();
+    } catch (error) {
+        Toast.warning('Изменение сохранено, но список не удалось обновить. Обновите страницу.', 4500, 'Список не обновлён');
+    }
     renderAll();
-    const status = task.completed ? 'выполнена' : 'возвращена в активные';
+    const status = tasks.find(item => item.id === id)?.completed ? 'выполнена' : 'возвращена в активные';
     Toast.success(`Задача "${task.title}" ${status}`, 2500, 'Статус изменён');
 }
 
@@ -649,7 +556,7 @@ function openEditModal(id) {
     document.getElementById('edit-title').focus();
 }
 
-function saveEdit() {
+async function saveEdit() {
     const task = tasks.find(t => t.id === editingId);
     if (!task) return;
 
@@ -674,14 +581,24 @@ function saveEdit() {
         return;
     }
     
-    task.title = newTitle;
-    task.description = newDescription || null; // 🆕
-    task.priority = document.getElementById('edit-priority').value;
-    task.dueDate = document.getElementById('edit-date').value || null;
-    task.category = document.getElementById('edit-category').value || null;
-    task.recurrence = getRecurrenceFromInputs('edit-recurrence', 'edit-recurrence-interval');
-
-    saveTasks();
+    const updated = {
+        ...task,
+        title: newTitle,
+        description: newDescription || null,
+        priority: document.getElementById('edit-priority').value,
+        dueDate: document.getElementById('edit-date').value || null,
+        category: document.getElementById('edit-category').value || null,
+        recurrence: getRecurrenceFromInputs('edit-recurrence', 'edit-recurrence-interval')
+    };
+    try {
+        const payload = await apiRequest(`/api/tasks/${encodeURIComponent(task.id)}`, {
+            method: 'PATCH', body: { version: task.version, ...toApiTask(updated) }
+        });
+        tasks[tasks.findIndex(item => item.id === task.id)] = mapApiTask(payload.task);
+    } catch (error) {
+        reportApiError(error);
+        return;
+    }
     closeEditModal();
     renderAll();
     Toast.success(`Задача обновлена`, 3000, 'Изменения сохранены');
@@ -697,7 +614,7 @@ function closeEditModal() {
 }
 
 // ===== КАТЕГОРИИ =====
-function addCategory() {
+async function addCategory() {
     const input = document.getElementById('new-category'); // ← правильный id
     const name = input.value.trim();
     
@@ -718,8 +635,15 @@ function addCategory() {
         return;
     }
 
-    categories.push(name);
-    saveCategories(); // Сохраняем в localStorage
+    try {
+        const payload = await apiRequest('/api/categories', { method: 'POST', body: { name } });
+        categoriesById.set(payload.category.id, payload.category);
+        categoryIdsByName.set(payload.category.name, payload.category.id);
+        categories.push(payload.category.name);
+    } catch (error) {
+        reportApiError(error);
+        return;
+    }
     input.value = '';
     renderAll();
     Toast.success(`Категория добавлена`, 3000, `Успешно`)
@@ -976,9 +900,9 @@ function renderCategories() {
         sel.value = currentValue;
     });
 
-    // Рендерим теги только для пользовательских категорий
+    // Рендерим категории для фильтрации и управления.
     list.innerHTML = '';
-    const userCategories = categories.filter(cat => !defaultCategories.includes(cat));
+    const userCategories = categories;
     
     userCategories.forEach(cat => {
         const tag = document.createElement('div');
@@ -994,12 +918,25 @@ function renderCategories() {
         nameSpan.style.flex = '1';
         nameSpan.addEventListener('click', () => toggleCategoryFilter(cat));
         tag.appendChild(nameSpan);
+
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.textContent = '✎';
+        editBtn.className = 'category-edit-btn';
+        editBtn.title = `Переименовать категорию «${cat}»`;
+        editBtn.setAttribute('aria-label', `Переименовать категорию «${cat}»`);
+        editBtn.addEventListener('click', event => {
+            event.stopPropagation();
+            renameCategory(cat);
+        });
+        tag.appendChild(editBtn);
         
         // Кнопка удаления (×)
         const deleteBtn = document.createElement('button');
         deleteBtn.textContent = '×';
         deleteBtn.className = 'category-delete-btn';
-        deleteBtn.title = 'Удалить категорию';
+        deleteBtn.title = `Удалить категорию «${cat}»`;
+        deleteBtn.setAttribute('aria-label', `Удалить категорию «${cat}»`);
         deleteBtn.addEventListener('click', (e) => {
             e.stopPropagation(); // Чтобы не срабатывал клик по тегу (фильтрация)
             deleteCategory(cat);
@@ -1018,8 +955,20 @@ function renderCategories() {
     }
 }
 
-function deleteCategory(categoryName) {
+async function deleteCategory(categoryName) {
     if (!confirm(`Удалить категорию "${categoryName}"?`)) return;
+
+    const categoryId = categoryIdsByName.get(categoryName);
+    const category = categoriesById.get(categoryId);
+    if (!category) return;
+    try {
+        await apiRequest(`/api/categories/${encodeURIComponent(categoryId)}`, {
+            method: 'DELETE', body: { version: Number(category.version) }
+        });
+    } catch (error) {
+        reportApiError(error);
+        return;
+    }
     
     // Удаляем категорию из массива
     categories = categories.filter(cat => cat !== categoryName);
@@ -1029,26 +978,57 @@ function deleteCategory(categoryName) {
         currentCategoryFilter = null;
     }
     
-    // Убираем категорию у активных и архивных задач
+    categoriesById.delete(categoryId);
+    categoryIdsByName.delete(categoryName);
     tasks.forEach(task => {
         if (task.category === categoryName) {
             task.category = null;
+            task.version += 1;
         }
     });
     archivedTasks.forEach(task => {
         if (task.category === categoryName) {
             task.category = null;
+            task.version += 1;
         }
     });
-    
-    // Сохраняем изменения
-    saveCategories();
-    saveTasks();
-    saveArchivedTasks();
+    await loadRemoteData().catch(() => {
+        Toast.warning('Категория удалена, но список не удалось обновить. Обновите страницу.', 4500, 'Список не обновлён');
+    });
     
     // Перерисовываем всё
     renderAll();
     Toast.success(`Категория удалена`, 3000, `Успешно`)
+}
+
+async function renameCategory(categoryName) {
+    const categoryId = categoryIdsByName.get(categoryName);
+    const category = categoriesById.get(categoryId);
+    if (!category) return;
+    const newName = prompt('Новое название категории:', categoryName)?.trim();
+    if (!newName || newName === categoryName) return;
+    if (newName.length > 50) {
+        Toast.warning('Название категории не должно превышать 50 символов.', 3500, 'Слишком длинное название');
+        return;
+    }
+
+    try {
+        const response = await apiRequest(`/api/categories/${encodeURIComponent(categoryId)}`, {
+            method: 'PATCH', body: { version: Number(category.version), name: newName }
+        });
+        categories = categories.map(name => name === categoryName ? response.category.name : name);
+        categoriesById.set(categoryId, response.category);
+        categoryIdsByName.delete(categoryName);
+        categoryIdsByName.set(response.category.name, categoryId);
+        tasks.forEach(task => { if (task.category === categoryName) task.category = response.category.name; });
+        archivedTasks.forEach(task => { if (task.category === categoryName) task.category = response.category.name; });
+        if (currentCategoryFilter === categoryName) currentCategoryFilter = response.category.name;
+        renderAll();
+        if (!document.getElementById('archive-modal').classList.contains('hidden')) renderArchive();
+        Toast.success('Категория переименована', 3000, 'Изменения сохранены');
+    } catch (error) {
+        reportApiError(error);
+    }
 }
 
 function toggleCategoryFilter(category) {
@@ -1067,61 +1047,76 @@ function renderAll() {
 }
 
 // Восстановить задачу из архива
-function restoreTask(id) {
+async function restoreTask(id) {
     const taskIndex = archivedTasks.findIndex(t => t.id === id);
     if (taskIndex === -1) return;
     
-    const [task] = archivedTasks.splice(taskIndex, 1);
-    delete task.deletedAt;
-    
-    tasks.push(task);
-    
-    saveTasks();
-    saveArchivedTasks();
+    const task = archivedTasks[taskIndex];
+    try {
+        const response = await apiRequest(`/api/tasks/${encodeURIComponent(id)}/restore`, {
+            method: 'POST', body: { version: task.version }
+        });
+        archivedTasks.splice(taskIndex, 1);
+        tasks.unshift(mapApiTask(response.task));
+    } catch (error) {
+        reportApiError(error);
+        return;
+    }
     renderAll(); // ← renderAll() уже вызывает updateStats()
     Toast.success(`Задача восстановлена`, 3000, `Успешно`)
     renderArchive();
 }
 
 // Полностью удалить из архива
-function deletePermanently(id) {
+async function deletePermanently(id) {
     if (!confirm('Удалить задачу навсегда? Это действие нельзя отменить.')) return;
     
-    archivedTasks = archivedTasks.filter(t => t.id !== id);
-    
-    saveArchivedTasks();
+    const task = archivedTasks.find(item => item.id === id);
+    if (!task) return;
+    try {
+        await apiRequest(`/api/tasks/${encodeURIComponent(id)}`, {
+            method: 'DELETE', body: { version: task.version }
+        });
+        archivedTasks = archivedTasks.filter(item => item.id !== id);
+    } catch (error) {
+        reportApiError(error);
+        return;
+    }
     renderArchive();
     updateStats(); // ← Было updateArchiveCount(), меняем на updateStats()
     Toast.success(`Задача полностью удалена`, 3000, `Успешно`)
 }
 
 // Восстановить все задачи из архива
-function restoreAllTasks() {
+async function restoreAllTasks() {
     if (archivedTasks.length === 0) return;
     if (!confirm(`Восстановить все ${archivedTasks.length} задач из архива?`)) return;
     
-    archivedTasks.forEach(task => {
-        delete task.deletedAt;
-        tasks.push(task);
-    });
-    
+    try {
+        await apiRequest('/api/archive/restore-all', { method: 'POST', body: {} });
+    } catch (error) {
+        reportApiError(error);
+        return;
+    }
+    tasks.unshift(...archivedTasks.map(task => ({ ...task, deletedAt: undefined, version: task.version + 1 })));
     archivedTasks = [];
-    
-    saveTasks();
-    saveArchivedTasks();
     renderAll(); // ← renderAll() уже вызывает updateStats()
     Toast.success(`Задачи восстановлены`, 3000, `Успешно`)
     renderArchive();
 }
 
 // Очистить архив
-function clearArchive() {
+async function clearArchive() {
     if (archivedTasks.length === 0) return;
     if (!confirm(`Удалить все ${archivedTasks.length} задач из архива навсегда?`)) return;
     
-    archivedTasks = [];
-    
-    saveArchivedTasks();
+    try {
+        await apiRequest('/api/archive', { method: 'DELETE', body: { confirm: true } });
+        archivedTasks = [];
+    } catch (error) {
+        reportApiError(error);
+        return;
+    }
     renderArchive();
     updateStats(); // ← Было updateArchiveCount(), меняем на updateStats()
     Toast.success(`Архив очищен`, 3000, `Успешно`)
@@ -1246,13 +1241,6 @@ function renderArchive() {
 
 // ===== ОБРАБОТЧИКИ СОБЫТИЙ =====
 document.getElementById('export-data-btn').addEventListener('click', exportData);
-document.getElementById('import-data-btn').addEventListener('click', () => {
-    document.getElementById('import-data-input').click();
-});
-document.getElementById('import-data-input').addEventListener('change', async event => {
-    await importData(event.target.files[0]);
-    event.target.value = '';
-});
 
 document.getElementById('add-btn').addEventListener('click', addTask);
 
@@ -1454,6 +1442,68 @@ editDescInput.addEventListener('input', () => {
 });
 // ===== ИНИЦИАЛИЗАЦИЯ =====
 loadTheme(); // Загружаем тему перед остальными данными
-loadData();
-renderAll();
+
+document.getElementById('login-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const submit = document.getElementById('login-submit');
+    const error = document.getElementById('login-error');
+    error.textContent = '';
+    error.classList.add('hidden');
+    submit.disabled = true;
+    submit.textContent = 'Входим…';
+    try {
+        await refreshCsrfToken();
+        const payload = await apiRequest('/api/auth/login', {
+            method: 'POST',
+            body: {
+                email: document.getElementById('login-email').value.trim(),
+                password: document.getElementById('login-password').value
+            }
+        });
+        csrfToken = payload.csrf_token;
+        document.getElementById('login-password').value = '';
+        showTaskApp(payload.account);
+        await loadRemoteData();
+    } catch (requestError) {
+        showLogin(requestError.message || 'Не удалось войти. Проверьте email и пароль.');
+        document.getElementById('login-password').value = '';
+    } finally {
+        submit.disabled = false;
+        submit.textContent = 'Войти';
+    }
+});
+
+document.getElementById('logout-btn').addEventListener('click', async () => {
+    try {
+        await apiRequest('/api/auth/logout', { method: 'POST', body: {} });
+        csrfToken = null;
+        tasks = [];
+        archivedTasks = [];
+        categories = [];
+        renderAll();
+        showLogin();
+        await refreshCsrfToken();
+    } catch (error) {
+        reportApiError(error);
+    }
+});
+
+async function bootstrap() {
+    try {
+        await refreshCsrfToken();
+        const payload = await apiRequest('/api/auth/me', { csrf: false });
+        csrfToken = payload.csrf_token;
+        showTaskApp(payload.account);
+        await loadRemoteData();
+    } catch (error) {
+        if (error.status === 401) {
+            showLogin();
+            return;
+        }
+        showLogin('Не удалось подключиться к серверу. Обновите страницу и попробуйте снова.');
+    }
+}
+
+bootstrap();
 

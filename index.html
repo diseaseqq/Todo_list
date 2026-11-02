@@ -9,12 +9,30 @@
 </head>
 
 <body>
-    <div class="app">
+    <main id="login-view" class="auth-view" aria-labelledby="login-title">
+        <p id="auth-loading" class="auth-loading" role="status">Проверяем сохранённый вход…</p>
+        <form id="login-form" class="auth-card hidden">
+            <h1 id="login-title">Вход в список задач</h1>
+            <p>Войдите, чтобы открыть задачи своего аккаунта.</p>
+            <label for="login-email">Email</label>
+            <input id="login-email" name="email" type="email" autocomplete="username" required maxlength="254">
+            <label for="login-password">Пароль</label>
+            <input id="login-password" name="password" type="password" autocomplete="current-password" required maxlength="72">
+            <button id="login-submit" class="btn btn-primary" type="submit">Войти</button>
+            <p id="login-error" class="auth-error hidden" role="alert"></p>
+        </form>
+    </main>
+
+    <div class="app hidden" id="task-app">
         <!-- Шапка со статистикой -->
         <header class="header">
             <div class="header-top">
                 <h1>📝 Мои задачи</h1>
-                <button id="theme-toggle-btn" class="btn-icon theme-btn" type="button" title="Переключить тему" aria-label="Переключить тему">🌙</button>
+                <div class="header-actions">
+                    <span id="account-email" class="account-email"></span>
+                    <button id="logout-btn" class="btn btn-secondary" type="button">Выйти</button>
+                    <button id="theme-toggle-btn" class="btn-icon theme-btn" type="button" title="Переключить тему" aria-label="Переключить тему">🌙</button>
+                </div>
             </div>
             <div class="stats">
                 <div class="stat-item">
@@ -85,10 +103,8 @@
             <h3 id="backup-heading">Резервная копия</h3>
             <div class="category-controls">
                 <button id="export-data-btn" class="btn btn-secondary" type="button">Скачать копию</button>
-                <button id="import-data-btn" class="btn btn-secondary" type="button">Импортировать копию</button>
-                <input id="import-data-input" type="file" accept="application/json,.json" class="hidden" aria-label="Выберите файл резервной копии">
             </div>
-            <p class="backup-hint">Копия содержит задачи, архив и категории. Импорт заменит эти данные.</p>
+            <p class="backup-hint">Копия содержит задачи, архив и категории текущего аккаунта.</p>
         </section>
         <!-- Панель категорий -->
 
@@ -174,7 +190,7 @@
             </div>
         </div>
     </div>
-    <button id="archive-btn" class="floating-archive-btn" type="button" title="Архив удалённых задач" aria-label="Открыть архив удалённых задач">
+    <button id="archive-btn" class="floating-archive-btn hidden" type="button" title="Архив удалённых задач" aria-label="Открыть архив удалённых задач">
         🗄️
         <span id="archive-count" class="archive-badge">0</span>
     </button>
