@@ -15,6 +15,9 @@ final class RecurrenceCalculator
         if ($value === null) {
             return null;
         }
+        if ($value instanceof \stdClass) {
+            $value = get_object_vars($value);
+        }
         if (!is_array($value) || !is_string($value['type'] ?? null)) {
             throw new ApiException('validation_error', 'recurrence must be null or an object with a type.', 422);
         }

@@ -1,0 +1,16 @@
+[Unit]
+Description=Create and rotate a consistent Todo List SQLite backup
+After=local-fs.target
+ConditionPathExists=/var/lib/todolist/app.sqlite
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+Environment=TODO_ENV=production
+Environment=TODO_DB_PATH=/var/lib/todolist/app.sqlite
+Environment=TODO_BACKUP_DIR=/var/backups/todolist
+ExecStart=/usr/bin/php /var/www/todo-list/backend/bin/backup-database.php
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
